@@ -1,0 +1,5 @@
+                popUpTo(Screen.Login.route) { inclusive = true } 
+Replace this line in LoginScreen.kt with: 
+                popUpTo(Screen.Login.route) { 
+                    inclusive = true 
+                } 
