@@ -17,3 +17,6 @@ mkdir
 *.ipr
 .DS_Store
 Thumbs.db
+.gradle/ 
+build/ 
+app/build/ 
