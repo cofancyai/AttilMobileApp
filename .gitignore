@@ -20,3 +20,7 @@ Thumbs.db
 .gradle/ 
 build/ 
 app/build/ 
+Task
+temp_nav_fix.txt
+temp_updated_networkmodule.txt
+temp_*.txt
