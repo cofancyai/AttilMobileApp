@@ -312,6 +312,10 @@ fun IndentManagementScreen(
                 },
                 onVerifyItems = {
                     viewModel.verifyIndentItems(indent.id!!, currentUserId)
+                },
+                onVerificationComplete = {
+                    // Close both dialogs after successful verification
+                    showIndentDetails = null
                 }
             )
         }
@@ -562,8 +566,20 @@ private fun VerificationDialog(
     currentUserId: String,
     onDismiss: () -> Unit,
     onItemVerificationChange: (String, Boolean) -> Unit,
-    onVerifyItems: () -> Unit
+    onVerifyItems: () -> Unit,
+    onVerificationComplete: () -> Unit
 ) {
+    // Track verification completion
+    var wasVerifying by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isVerifying) {
+        if (wasVerifying && !isVerifying && verificationError == null) {
+            // Verification completed successfully
+            onVerificationComplete()
+        }
+        wasVerifying = isVerifying
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {

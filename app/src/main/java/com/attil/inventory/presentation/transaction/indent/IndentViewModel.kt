@@ -452,6 +452,19 @@ class IndentViewModel @Inject constructor(
                 repository.verifyMultipleIndentItems(itemIds, verifyRequest).collect { result ->
                     result.fold(
                         onSuccess = {
+                            // Create outward transactions for verified items to update stock
+                            // This is where stock is actually updated - only after chef verification
+                            receivedItems.forEach { verificationItem ->
+                                val indentItem = verificationItem.indentItem
+                                indentItem.fulfilledQuantity?.let { fulfilledQty ->
+                                    createOutwardTransactionForVerification(
+                                        itemId = indentItem.itemId,
+                                        quantity = fulfilledQty,
+                                        indentId = indentId
+                                    )
+                                }
+                            }
+
                             // Calculate new indent status
                             val allFulfilledItems = _uiState.value.verificationItems.filter { it.isFulfilled }
                             val receivedCount = _uiState.value.verificationItems.count { it.isReceived && it.isFulfilled }
@@ -530,10 +543,8 @@ class IndentViewModel @Inject constructor(
                     }
                 }
 
-                // Create outward transactions for fulfilled items
-                selectedItems.forEach { item ->
-                    createOutwardTransaction(item, indentId)
-                }
+                // NOTE: Outward transactions (stock updates) are now created during verification,
+                // not during fulfillment. Stock is only updated when chef verifies receipt.
 
                 // Update indent status
                 val allItemsFulfilled = fulfillmentItems.all {
@@ -603,6 +614,41 @@ class IndentViewModel @Inject constructor(
             }
         } catch (e: Exception) {
             println("DEBUG - Exception creating outward transaction: ${e.message}")
+        }
+    }
+
+    private suspend fun createOutwardTransactionForVerification(
+        itemId: String,
+        quantity: Double,
+        indentId: String
+    ) {
+        try {
+            val outwardRequest = CreateOutwardItemRequest(
+                itemId = itemId,
+                categoryId = null,
+                outwardQuantity = quantity,
+                cuisineType = null,
+                usageDate = getCurrentDate(),
+                notes = "Verified and received from indent: $indentId",
+                createdBy = null,
+                cuisineId = null,
+                indentId = indentId,
+                sourceType = "indent"
+            )
+
+            println("DEBUG - Creating outward transaction for verified item: $outwardRequest")
+            outwardRepository.createOutwardItem(outwardRequest).collect { result ->
+                result.fold(
+                    onSuccess = {
+                        println("DEBUG - Outward transaction created successfully for verified item")
+                    },
+                    onFailure = { error ->
+                        println("DEBUG - Failed to create outward transaction for verified item: ${error.message}")
+                    }
+                )
+            }
+        } catch (e: Exception) {
+            println("DEBUG - Exception creating outward transaction for verified item: ${e.message}")
         }
     }
 
