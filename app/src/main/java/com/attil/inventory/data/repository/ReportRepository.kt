@@ -148,44 +148,66 @@ class ReportRepository @Inject constructor(
     // CUISINE-WISE REPORT METHODS
     fun getCuisineWiseReport(filter: ReportFilter, cuisineId: String?): Flow<Result<CuisineWiseReport>> = flow {
         try {
-            Log.d("ReportRepo", "Fetching cuisine-wise report for cuisine: ${cuisineId ?: "All"}")
+            Log.d("ReportRepo", "Fetching cuisine-wise report for cuisine ID: ${cuisineId ?: "All"}")
 
             val dateFilter = "gte.${filter.startDate}"
             val cuisineFilter = if (cuisineId != null) "eq.$cuisineId" else null
 
+            Log.d("ReportRepo", "API call with dateFilter: $dateFilter, cuisineFilter: $cuisineFilter")
+
             val response = reportApiService.getCuisineWiseReportByDateRange(
                 dateRange = dateFilter,
                 cuisineId = cuisineFilter,
-                select = "*,items(id,name,unit_of_measure,categories(name)),cuisines(name),users(full_name)",
+                select = "*,items(id,name,unit_of_measure,categories(name)),cuisines(id,name),users(full_name)",
                 order = "usage_date.desc"
             )
 
             if (response.isSuccessful) {
                 val rawData = response.body() ?: emptyList()
-                val items = parseOutwardReportItemsWithCosts(rawData)
+                Log.d("ReportRepo", "Received ${rawData.size} raw items from API")
 
-                // Calculate cuisine breakdown
-                val cuisineBreakdown = calculateCuisineBreakdown(items)
+                // Parse all items first
+                val allItems = parseOutwardReportItemsWithCosts(rawData)
+                Log.d("ReportRepo", "Parsed ${allItems.size} items")
 
-                val totalValue = items.sumOf { it.calculatedTotalCost }.toBigDecimal()
+                // Client-side filtering by cuisine if needed (as fallback if API filter didn't work)
+                val filteredItems = if (cuisineId != null) {
+                    allItems.filter { item ->
+                        // Extract cuisine ID from the cuisines object in raw data
+                        val itemRawData = rawData.find { it["id"] == item.id }
+                        val cuisines = itemRawData?.get("cuisines") as? Map<String, Any>
+                        val itemCuisineId = cuisines?.get("id")?.toString()
+                        Log.d("ReportRepo", "Item ${item.itemName}: cuisineId=$itemCuisineId, looking for=$cuisineId")
+                        itemCuisineId == cuisineId
+                    }
+                } else {
+                    allItems
+                }
+
+                Log.d("ReportRepo", "After cuisine filtering: ${filteredItems.size} items")
+
+                // Calculate cuisine breakdown (from filtered items)
+                val cuisineBreakdown = calculateCuisineBreakdown(filteredItems)
+
+                val totalValue = filteredItems.sumOf { it.calculatedTotalCost }.toBigDecimal()
                 val cuisineName = if (cuisineId == null) {
                     null  // All cuisines
                 } else {
-                    items.firstOrNull()?.cuisineName  // Get cuisine name from first item
+                    filteredItems.firstOrNull()?.cuisineName  // Get cuisine name from first item
                 }
 
                 val report = CuisineWiseReport(
                     reportDate = getCurrentDateTime(),
                     filter = filter,
                     cuisineName = cuisineName,
-                    totalTransactions = items.size,
-                    totalQuantity = items.sumOf { it.outwardQuantity },
+                    totalTransactions = filteredItems.size,
+                    totalQuantity = filteredItems.sumOf { it.outwardQuantity },
                     totalValue = totalValue,
-                    items = items,
+                    items = filteredItems,
                     cuisineBreakdown = cuisineBreakdown
                 )
 
-                Log.d("ReportRepo", "Successfully fetched cuisine-wise report: ${items.size} items, ${cuisineBreakdown.size} cuisines")
+                Log.d("ReportRepo", "Successfully created cuisine-wise report: ${filteredItems.size} items, ${cuisineBreakdown.size} cuisines, total=$totalValue")
                 emit(Result.success(report))
             } else {
                 val errorBody = response.errorBody()?.string()

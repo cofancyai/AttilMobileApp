@@ -198,10 +198,17 @@ fun InventoryReportsScreen(
                         DropdownMenu(
                             expanded = cuisineDropdownExpanded,
                             onDismissRequest = { cuisineDropdownExpanded = false },
-                            modifier = Modifier.fillMaxWidth(0.9f)
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .background(Color.White)
                         ) {
                             DropdownMenuItem(
-                                text = { Text("All Cuisines") },
+                                text = {
+                                    Text(
+                                        "All Cuisines",
+                                        color = Color(0xFF333333)
+                                    )
+                                },
                                 onClick = {
                                     viewModel.setSelectedCuisineId(null)
                                     cuisineDropdownExpanded = false
@@ -209,7 +216,12 @@ fun InventoryReportsScreen(
                             )
                             cuisines.forEach { cuisine ->
                                 DropdownMenuItem(
-                                    text = { Text(cuisine.name) },
+                                    text = {
+                                        Text(
+                                            cuisine.name,
+                                            color = Color(0xFF333333)
+                                        )
+                                    },
                                     onClick = {
                                         viewModel.setSelectedCuisineId(cuisine.id)
                                         cuisineDropdownExpanded = false
