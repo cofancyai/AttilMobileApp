@@ -321,6 +321,76 @@ private fun ItemSelectionStep(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // Category Filter
+                    var categoryDropdownExpanded by remember { mutableStateOf(false) }
+                    val availableCategories = remember(uiState.availableItems) {
+                        uiState.availableItems
+                            .mapNotNull { it.item.categories?.name }
+                            .distinct()
+                            .sorted()
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = if (uiState.selectedCategoryFilter.isEmpty()) "All Categories" else uiState.selectedCategoryFilter,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Category Filter", color = Color(0xFF666666)) },
+                            leadingIcon = {
+                                Icon(Icons.Default.FilterList, contentDescription = "Category", tint = Color(0xFF667eea))
+                            },
+                            trailingIcon = {
+                                Row {
+                                    if (uiState.selectedCategoryFilter.isNotEmpty()) {
+                                        IconButton(onClick = { viewModel.filterByCategory("") }) {
+                                            Icon(Icons.Default.Clear, contentDescription = "Clear filter", tint = Color(0xFF666666))
+                                        }
+                                    }
+                                    IconButton(onClick = { categoryDropdownExpanded = !categoryDropdownExpanded }) {
+                                        Icon(
+                                            if (categoryDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                            contentDescription = "Dropdown",
+                                            tint = Color(0xFF667eea)
+                                        )
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF667eea),
+                                focusedTextColor = Color(0xFF333333),
+                                unfocusedTextColor = Color(0xFF333333)
+                            )
+                        )
+
+                        DropdownMenu(
+                            expanded = categoryDropdownExpanded,
+                            onDismissRequest = { categoryDropdownExpanded = false },
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .background(Color.White)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("All Categories", color = Color(0xFF333333)) },
+                                onClick = {
+                                    viewModel.filterByCategory("")
+                                    categoryDropdownExpanded = false
+                                }
+                            )
+                            availableCategories.forEach { category ->
+                                DropdownMenuItem(
+                                    text = { Text(category, color = Color(0xFF333333)) },
+                                    onClick = {
+                                        viewModel.filterByCategory(category)
+                                        categoryDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     // Search Bar
                     OutlinedTextField(
                         value = uiState.searchQuery,
