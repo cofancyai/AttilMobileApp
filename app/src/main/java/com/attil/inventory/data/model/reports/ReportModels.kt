@@ -9,10 +9,11 @@ data class ReportFilter(
     val endDate: String
 )
 
-// Simplified Report Types - only 2 types
+// Report Types
 enum class ReportType {
     INWARD,
-    OUTWARD
+    OUTWARD,
+    CUISINE_WISE
 }
 
 // INWARD REPORT MODELS
@@ -118,6 +119,26 @@ data class OutwardSummary(
     val topCuisine: String?,
     val topCategory: String?,
     val averageConsumptionValue: BigDecimal
+)
+
+// CUISINE-WISE REPORT MODELS
+data class CuisineWiseReport(
+    val reportDate: String,
+    val filter: ReportFilter,
+    val cuisineName: String?, // null means "All Cuisines"
+    val totalTransactions: Int,
+    val totalQuantity: Double,
+    val totalValue: BigDecimal,
+    val items: List<OutwardReportItem>, // Reuse OutwardReportItem
+    val cuisineBreakdown: List<CuisineBreakdownItem> // Summary by cuisine
+)
+
+data class CuisineBreakdownItem(
+    val cuisineName: String,
+    val totalTransactions: Int,
+    val totalQuantity: Double,
+    val totalCost: Double,
+    val percentageOfTotal: Double
 )
 
 // Moving average cost response model

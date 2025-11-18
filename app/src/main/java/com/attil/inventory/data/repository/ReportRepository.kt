@@ -145,6 +145,78 @@ class ReportRepository @Inject constructor(
         }
     }
 
+    // CUISINE-WISE REPORT METHODS
+    fun getCuisineWiseReport(filter: ReportFilter, cuisineId: String?): Flow<Result<CuisineWiseReport>> = flow {
+        try {
+            Log.d("ReportRepo", "Fetching cuisine-wise report for cuisine: ${cuisineId ?: "All"}")
+
+            val dateFilter = "gte.${filter.startDate}"
+            val cuisineFilter = if (cuisineId != null) "eq.$cuisineId" else null
+
+            val response = reportApiService.getCuisineWiseReportByDateRange(
+                dateRange = dateFilter,
+                cuisineId = cuisineFilter,
+                select = "*,items(id,name,unit_of_measure,categories(name)),cuisines(name),users(full_name)",
+                order = "usage_date.desc"
+            )
+
+            if (response.isSuccessful) {
+                val rawData = response.body() ?: emptyList()
+                val items = parseOutwardReportItemsWithCosts(rawData)
+
+                // Calculate cuisine breakdown
+                val cuisineBreakdown = calculateCuisineBreakdown(items)
+
+                val totalValue = items.sumOf { it.calculatedTotalCost }.toBigDecimal()
+                val cuisineName = if (cuisineId == null) {
+                    null  // All cuisines
+                } else {
+                    items.firstOrNull()?.cuisineName  // Get cuisine name from first item
+                }
+
+                val report = CuisineWiseReport(
+                    reportDate = getCurrentDateTime(),
+                    filter = filter,
+                    cuisineName = cuisineName,
+                    totalTransactions = items.size,
+                    totalQuantity = items.sumOf { it.outwardQuantity },
+                    totalValue = totalValue,
+                    items = items,
+                    cuisineBreakdown = cuisineBreakdown
+                )
+
+                Log.d("ReportRepo", "Successfully fetched cuisine-wise report: ${items.size} items, ${cuisineBreakdown.size} cuisines")
+                emit(Result.success(report))
+            } else {
+                val errorBody = response.errorBody()?.string()
+                Log.e("ReportRepo", "Error fetching cuisine-wise report: $errorBody")
+                emit(Result.failure(Exception("Failed to fetch cuisine-wise report: ${response.code()} - $errorBody")))
+            }
+        } catch (e: Exception) {
+            Log.e("ReportRepo", "Exception fetching cuisine-wise report", e)
+            emit(Result.failure(e))
+        }
+    }
+
+    private fun calculateCuisineBreakdown(items: List<OutwardReportItem>): List<CuisineBreakdownItem> {
+        val totalCost = items.sumOf { it.calculatedTotalCost }
+
+        return items
+            .filter { !it.cuisineName.isNullOrBlank() }
+            .groupBy { it.cuisineName!! }
+            .map { (cuisineName, cuisineItems) ->
+                val cuisineTotalCost = cuisineItems.sumOf { it.calculatedTotalCost }
+                CuisineBreakdownItem(
+                    cuisineName = cuisineName,
+                    totalTransactions = cuisineItems.size,
+                    totalQuantity = cuisineItems.sumOf { it.outwardQuantity },
+                    totalCost = cuisineTotalCost,
+                    percentageOfTotal = if (totalCost > 0) (cuisineTotalCost / totalCost) * 100 else 0.0
+                )
+            }
+            .sortedByDescending { it.totalCost }
+    }
+
     // PRIVATE HELPER METHODS
     private fun parseInwardReportItems(rawData: List<Map<String, Any>>): List<InwardReportItem> {
         return rawData.mapNotNull { data ->
