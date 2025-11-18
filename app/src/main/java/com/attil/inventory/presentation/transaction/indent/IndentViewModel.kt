@@ -200,7 +200,7 @@ class IndentViewModel @Inject constructor(
                 result.fold(
                     onSuccess = { user ->
                         // Get assigned cuisines from user_cuisines junction table
-                        val assignedCuisines = user.getAssignedCuisines()
+                        val assignedCuisines = user?.getAssignedCuisines() ?: emptyList()
                         _uiState.value = _uiState.value.copy(cuisines = assignedCuisines)
 
                         // Auto-select first cuisine if only one assigned
