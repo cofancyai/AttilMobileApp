@@ -42,6 +42,8 @@ data class IndentUiState(
     val notes: String = "",
     val selectedCuisine: Cuisine? = null,
     val cuisines: List<Cuisine> = emptyList(),
+    val usages: List<com.attil.inventory.data.model.management.Usage> = emptyList(),
+    val selectedUsage: com.attil.inventory.data.model.management.Usage? = null,
 
     // Item selection state
     val availableItems: List<ItemForIndentSelection> = emptyList(),
@@ -68,7 +70,8 @@ class IndentViewModel @Inject constructor(
     private val repository: IndentRepository,
     private val cuisineRepository: CuisineRepository,
     private val outwardRepository: OutwardRepository,
-    private val userRepository: com.attil.inventory.data.repository.UserRepository
+    private val userRepository: com.attil.inventory.data.repository.UserRepository,
+    private val usageRepository: com.attil.inventory.data.repository.UsageRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(IndentUiState())
@@ -76,6 +79,7 @@ class IndentViewModel @Inject constructor(
 
     init {
         loadCuisines()
+        loadUsages()
         loadItemsForIndent()
     }
 
@@ -174,6 +178,44 @@ class IndentViewModel @Inject constructor(
         }
     }
 
+    private fun loadUsages() {
+        viewModelScope.launch {
+            usageRepository.getAllUsages().collect { result ->
+                result.fold(
+                    onSuccess = { usages ->
+                        val activeUsages = usages.filter { it.isActive }
+                        _uiState.value = _uiState.value.copy(usages = activeUsages)
+                    },
+                    onFailure = { error ->
+                        _uiState.value = _uiState.value.copy(error = error.message)
+                    }
+                )
+            }
+        }
+    }
+
+    fun loadChefCuisines(chefId: String) {
+        viewModelScope.launch {
+            userRepository.getUserById(chefId).collect { result ->
+                result.fold(
+                    onSuccess = { user ->
+                        // Get assigned cuisines from user_cuisines junction table
+                        val assignedCuisines = user.getAssignedCuisines()
+                        _uiState.value = _uiState.value.copy(cuisines = assignedCuisines)
+
+                        // Auto-select first cuisine if only one assigned
+                        if (assignedCuisines.size == 1) {
+                            _uiState.value = _uiState.value.copy(selectedCuisine = assignedCuisines.first())
+                        }
+                    },
+                    onFailure = { error ->
+                        _uiState.value = _uiState.value.copy(error = error.message)
+                    }
+                )
+            }
+        }
+    }
+
     private fun loadItemsForIndent() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoadingItems = true)
@@ -221,6 +263,13 @@ class IndentViewModel @Inject constructor(
 
     fun selectCuisine(cuisine: Cuisine) {
         _uiState.value = _uiState.value.copy(selectedCuisine = cuisine)
+    }
+
+    fun selectUsage(usage: com.attil.inventory.data.model.management.Usage) {
+        _uiState.value = _uiState.value.copy(
+            selectedUsage = usage,
+            purpose = usage.name // Update purpose text as well
+        )
     }
 
     // Item selection
