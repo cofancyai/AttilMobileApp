@@ -7,6 +7,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +29,7 @@ fun UserManagementScreen(
 ) {
     val users by viewModel.filteredUsers.collectAsState()
     val selectedUser by viewModel.selectedUser.collectAsState()
+    val cuisines by viewModel.cuisines.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val successMessage by viewModel.successMessage.collectAsState()
@@ -171,9 +173,10 @@ fun UserManagementScreen(
         UserDialog(
             title = "Create User",
             user = null,
+            cuisines = cuisines,
             onDismiss = { showCreateDialog = false },
-            onConfirm = { username, password, fullName, phone ->
-                viewModel.createUser(username, "$username@restaurant.com", password, fullName, phone, null, true)
+            onConfirm = { username, password, fullName, phone, cuisineId ->
+                viewModel.createUser(username, "$username@restaurant.com", password, fullName, phone, null, cuisineId, true)
                 showCreateDialog = false
             }
         )
@@ -183,10 +186,11 @@ fun UserManagementScreen(
         UserDialog(
             title = "Edit User",
             user = selectedUser,
+            cuisines = cuisines,
             onDismiss = { showEditDialog = false },
-            onConfirm = { username, _, fullName, phone ->
+            onConfirm = { username, _, fullName, phone, cuisineId ->
                 selectedUser?.let { user ->
-                    viewModel.updateUser(user.id, username, user.email, fullName, phone, user.roleId, user.isActive)
+                    viewModel.updateUser(user.id, username, user.email, fullName, phone, user.roleId, cuisineId, user.isActive)
                 }
                 showEditDialog = false
             }
@@ -357,14 +361,17 @@ fun DeleteConfirmDialog(
 fun UserDialog(
     title: String,
     user: User?,
+    cuisines: List<com.attil.inventory.data.model.management.Cuisine>,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String, String?) -> Unit
+    onConfirm: (String, String, String, String?, String?) -> Unit
 ) {
     var username by remember { mutableStateOf(user?.username ?: "") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf(user?.fullName ?: "") }
     var phone by remember { mutableStateOf(user?.phone ?: "") }
+    var selectedCuisineId by remember { mutableStateOf(user?.cuisineId) }
+    var cuisineDropdownExpanded by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
 
@@ -470,6 +477,54 @@ fun UserDialog(
                         unfocusedTextColor = Color.Black
                     )
                 )
+
+                // Cuisine (Optional)
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = cuisines.find { it.id == selectedCuisineId }?.name ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Cuisine (Optional)", color = Color.Black) },
+                        trailingIcon = {
+                            IconButton(onClick = { cuisineDropdownExpanded = !cuisineDropdownExpanded }) {
+                                Icon(
+                                    if (cuisineDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                    contentDescription = "Dropdown",
+                                    tint = Color.Black
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.Black,
+                            unfocusedTextColor = Color.Black,
+                            disabledTextColor = Color.Black
+                        )
+                    )
+
+                    DropdownMenu(
+                        expanded = cuisineDropdownExpanded,
+                        onDismissRequest = { cuisineDropdownExpanded = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("None", color = Color.Black) },
+                            onClick = {
+                                selectedCuisineId = null
+                                cuisineDropdownExpanded = false
+                            }
+                        )
+                        cuisines.forEach { cuisine ->
+                            DropdownMenuItem(
+                                text = { Text(cuisine.name, color = Color.Black) },
+                                onClick = {
+                                    selectedCuisineId = cuisine.id
+                                    cuisineDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -480,7 +535,7 @@ fun UserDialog(
                     val isValidForEdit = user != null && username.isNotBlank() && fullName.isNotBlank()
 
                     if (isValidForCreate || isValidForEdit) {
-                        onConfirm(username, password, fullName, phone.takeIf { it.isNotBlank() })
+                        onConfirm(username, password, fullName, phone.takeIf { it.isNotBlank() }, selectedCuisineId)
                     }
                 },
                 enabled = if (user == null) {

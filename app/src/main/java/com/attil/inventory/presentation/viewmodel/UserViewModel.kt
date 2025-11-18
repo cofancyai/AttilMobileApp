@@ -10,6 +10,8 @@ import com.attil.inventory.data.model.master.UpdateUserRequest
 import com.attil.inventory.data.model.master.ResetPasswordRequest
 import com.attil.inventory.data.repository.UserRepository
 import com.attil.inventory.data.repository.RoleRepository
+import com.attil.inventory.data.repository.CuisineRepository
+import com.attil.inventory.data.model.management.Cuisine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +23,8 @@ import javax.inject.Inject
 @HiltViewModel
 class UserViewModel @Inject constructor(
     private val userRepository: UserRepository,
-    private val roleRepository: RoleRepository
+    private val roleRepository: RoleRepository,
+    private val cuisineRepository: CuisineRepository
 ) : ViewModel() {
 
     private val _users = MutableStateFlow<List<User>>(emptyList())
@@ -35,6 +38,9 @@ class UserViewModel @Inject constructor(
 
     private val _roles = MutableStateFlow<List<Role>>(emptyList())
     val roles: StateFlow<List<Role>> = _roles.asStateFlow()
+
+    private val _cuisines = MutableStateFlow<List<Cuisine>>(emptyList())
+    val cuisines: StateFlow<List<Cuisine>> = _cuisines.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -58,6 +64,7 @@ class UserViewModel @Inject constructor(
         Log.d("UserViewModel", "UserViewModel initialized")
         loadUsers()
         loadRoles()
+        loadCuisines()
     }
 
     fun loadUsers() {
@@ -116,6 +123,33 @@ class UserViewModel @Inject constructor(
         }
     }
 
+    fun loadCuisines() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+
+            try {
+                cuisineRepository.getAllCuisines().collectLatest { result ->
+                    _isLoading.value = false
+                    result.fold(
+                        onSuccess = { cuisineList ->
+                            Log.d("UserViewModel", "Successfully loaded ${cuisineList.size} cuisines")
+                            _cuisines.value = cuisineList
+                        },
+                        onFailure = { exception ->
+                            Log.e("UserViewModel", "Error loading cuisines", exception)
+                            _errorMessage.value = exception.message ?: "Failed to load cuisines"
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("UserViewModel", "Exception loading cuisines", e)
+                _isLoading.value = false
+                _errorMessage.value = e.message ?: "Unknown error occurred"
+            }
+        }
+    }
+
     fun createUser(
         username: String,
         email: String,
@@ -123,6 +157,7 @@ class UserViewModel @Inject constructor(
         fullName: String,
         phone: String?,
         roleId: String?,
+        cuisineId: String?,
         isActive: Boolean
     ) {
         viewModelScope.launch {
@@ -137,6 +172,7 @@ class UserViewModel @Inject constructor(
                     fullName = fullName,
                     phone = phone,
                     roleId = roleId,
+                    cuisineId = cuisineId,
                     password = password,
                     isActive = isActive
                 )
@@ -170,6 +206,7 @@ class UserViewModel @Inject constructor(
         fullName: String?,
         phone: String?,
         roleId: String?,
+        cuisineId: String?,
         isActive: Boolean?
     ) {
         viewModelScope.launch {
@@ -184,6 +221,7 @@ class UserViewModel @Inject constructor(
                     fullName = fullName,
                     phone = phone,
                     roleId = roleId,
+                    cuisineId = cuisineId,
                     isActive = isActive
                 )
 
