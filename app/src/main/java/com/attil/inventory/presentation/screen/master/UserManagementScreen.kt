@@ -178,9 +178,8 @@ fun UserManagementScreen(
             cuisines = cuisines,
             onDismiss = { showCreateDialog = false },
             onConfirm = { username, password, fullName, phone, cuisineIds ->
-                // For backward compatibility, use first cuisine ID
-                // TODO: Update to handle multiple cuisines after user_cuisines table is set up
-                viewModel.createUser(username, "$username@restaurant.com", password, fullName, phone, null, cuisineIds.firstOrNull(), true)
+                // Pass all cuisine IDs to ViewModel for junction table management
+                viewModel.createUser(username, "$username@restaurant.com", password, fullName, phone, null, cuisineIds.firstOrNull(), true, cuisineIds)
                 showCreateDialog = false
             }
         )
@@ -194,9 +193,8 @@ fun UserManagementScreen(
             onDismiss = { showEditDialog = false },
             onConfirm = { username, _, fullName, phone, cuisineIds ->
                 selectedUser?.let { user ->
-                    // For backward compatibility, use first cuisine ID
-                    // TODO: Update to handle multiple cuisines after user_cuisines table is set up
-                    viewModel.updateUser(user.id, username, user.email, fullName, phone, user.roleId, cuisineIds.firstOrNull(), user.isActive)
+                    // Pass all cuisine IDs to ViewModel for junction table management
+                    viewModel.updateUser(user.id, username, user.email, fullName, phone, user.roleId, cuisineIds.firstOrNull(), user.isActive, cuisineIds)
                 }
                 showEditDialog = false
             }

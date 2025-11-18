@@ -67,6 +67,17 @@ class ReportViewModel @Inject constructor(
     private val _usages = MutableStateFlow<List<Usage>>(emptyList())
     val usages: StateFlow<List<Usage>> = _usages.asStateFlow()
 
+    // Outward Report Filter Type
+    enum class OutwardFilterType {
+        CUISINE, CATEGORY, PURPOSE
+    }
+
+    private val _outwardFilterType = MutableStateFlow<OutwardFilterType?>(null)
+    val outwardFilterType: StateFlow<OutwardFilterType?> = _outwardFilterType.asStateFlow()
+
+    private val _outwardFilterValue = MutableStateFlow<String?>(null)
+    val outwardFilterValue: StateFlow<String?> = _outwardFilterValue.asStateFlow()
+
     // Date filter state
     private val _startDate = MutableStateFlow(getDefaultStartDate())
     val startDate: StateFlow<String> = _startDate.asStateFlow()
@@ -188,6 +199,38 @@ class ReportViewModel @Inject constructor(
 
     fun setSelectedUsageName(usageName: String?) {
         _selectedUsageName.value = usageName
+        loadOutwardReport()
+    }
+
+    // New filter type methods
+    fun setOutwardFilterType(filterType: OutwardFilterType?) {
+        _outwardFilterType.value = filterType
+        _outwardFilterValue.value = null // Reset filter value when type changes
+
+        // Clear all filters
+        _selectedCuisineId.value = null
+        _selectedCategoryName.value = null
+        _selectedUsageName.value = null
+
+        loadOutwardReport()
+    }
+
+    fun setOutwardFilterValue(value: String?) {
+        _outwardFilterValue.value = value
+
+        // Set the appropriate filter based on filter type
+        when (_outwardFilterType.value) {
+            OutwardFilterType.CUISINE -> _selectedCuisineId.value = value
+            OutwardFilterType.CATEGORY -> _selectedCategoryName.value = value
+            OutwardFilterType.PURPOSE -> _selectedUsageName.value = value
+            null -> {
+                // Clear all filters
+                _selectedCuisineId.value = null
+                _selectedCategoryName.value = null
+                _selectedUsageName.value = null
+            }
+        }
+
         loadOutwardReport()
     }
 

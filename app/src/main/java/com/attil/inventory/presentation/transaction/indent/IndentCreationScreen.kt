@@ -320,55 +320,6 @@ private fun ItemSelectionStep(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Priority Selection
-                    var priorityDropdownExpanded by remember { mutableStateOf(false) }
-                    val priorities = listOf("Low", "Medium", "High", "Urgent")
-                    val selectedPriority = uiState.priority.ifEmpty { "Medium" }
-
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        OutlinedTextField(
-                            value = selectedPriority,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Priority *", color = Color(0xFF666666)) },
-                            trailingIcon = {
-                                IconButton(onClick = { priorityDropdownExpanded = !priorityDropdownExpanded }) {
-                                    Icon(
-                                        if (priorityDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
-                                        contentDescription = "Select Priority",
-                                        tint = Color(0xFF667eea)
-                                    )
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF667eea),
-                                focusedTextColor = Color(0xFF333333),
-                                unfocusedTextColor = Color(0xFF333333)
-                            )
-                        )
-
-                        DropdownMenu(
-                            expanded = priorityDropdownExpanded,
-                            onDismissRequest = { priorityDropdownExpanded = false },
-                            modifier = Modifier
-                                .fillMaxWidth(0.9f)
-                                .background(Color.White)
-                        ) {
-                            priorities.forEach { priority ->
-                                DropdownMenuItem(
-                                    text = { Text(priority, color = Color(0xFF333333)) },
-                                    onClick = {
-                                        viewModel.setPriority(priority)
-                                        priorityDropdownExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
                     // Usage/Purpose Selection (From Usages Table)
                     var usageDropdownExpanded by remember { mutableStateOf(false) }
                     Box(modifier = Modifier.fillMaxWidth()) {

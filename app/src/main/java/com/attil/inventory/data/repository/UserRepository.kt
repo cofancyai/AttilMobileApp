@@ -322,5 +322,39 @@ class UserRepository @Inject constructor(
             emit(Result.failure(e))
         }
     }
+
+    // User Cuisines Management
+    suspend fun updateUserCuisines(userId: String, cuisineIds: List<String>): Flow<Result<Unit>> = flow {
+        try {
+            Log.d("UserRepo", "Updating user cuisines for user $userId with ${cuisineIds.size} cuisines")
+
+            // First, remove all existing cuisine assignments
+            val deleteResponse = userApiService.removeAllCuisinesFromUser("eq.$userId")
+            if (!deleteResponse.isSuccessful) {
+                val errorBody = deleteResponse.errorBody()?.string()
+                Log.e("UserRepo", "Error removing existing cuisines: $errorBody")
+                emit(Result.failure(Exception("Failed to remove existing cuisines: ${deleteResponse.code()} - $errorBody")))
+                return@flow
+            }
+
+            // Then, add new cuisine assignments
+            for (cuisineId in cuisineIds) {
+                val assignment = mapOf("user_id" to userId, "cuisine_id" to cuisineId)
+                val addResponse = userApiService.assignCuisineToUser(assignment)
+                if (!addResponse.isSuccessful) {
+                    val errorBody = addResponse.errorBody()?.string()
+                    Log.e("UserRepo", "Error assigning cuisine $cuisineId: $errorBody")
+                    emit(Result.failure(Exception("Failed to assign cuisine: ${addResponse.code()} - $errorBody")))
+                    return@flow
+                }
+            }
+
+            Log.d("UserRepo", "Successfully updated user cuisines")
+            emit(Result.success(Unit))
+        } catch (e: Exception) {
+            Log.e("UserRepo", "Exception updating user cuisines", e)
+            emit(Result.failure(e))
+        }
+    }
 }
 
