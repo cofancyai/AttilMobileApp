@@ -14,7 +14,9 @@ import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
 import com.attil.inventory.data.model.reports.*
+import com.attil.inventory.data.model.management.Cuisine
 import com.attil.inventory.data.repository.ReportRepository
+import com.attil.inventory.data.repository.CuisineRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +33,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ReportViewModel @Inject constructor(
-    private val reportRepository: ReportRepository
+    private val reportRepository: ReportRepository,
+    private val cuisineRepository: CuisineRepository
 ) : ViewModel() {
 
     // Common state
@@ -47,6 +50,10 @@ class ReportViewModel @Inject constructor(
     // Current report type
     private val _currentReportType = MutableStateFlow(ReportType.INWARD)
     val currentReportType: StateFlow<ReportType> = _currentReportType.asStateFlow()
+
+    // Cuisines for filtering
+    private val _cuisines = MutableStateFlow<List<Cuisine>>(emptyList())
+    val cuisines: StateFlow<List<Cuisine>> = _cuisines.asStateFlow()
 
     // Date filter state
     private val _startDate = MutableStateFlow(getDefaultStartDate())
@@ -79,6 +86,27 @@ class ReportViewModel @Inject constructor(
     init {
         // Load default report on initialization
         loadInwardReport()
+        loadCuisines()
+    }
+
+    private fun loadCuisines() {
+        viewModelScope.launch {
+            try {
+                cuisineRepository.getAllCuisines().collect { result ->
+                    result.fold(
+                        onSuccess = { cuisineList ->
+                            _cuisines.value = cuisineList
+                            Log.d("ReportViewModel", "Successfully loaded ${cuisineList.size} cuisines")
+                        },
+                        onFailure = { error ->
+                            Log.e("ReportViewModel", "Error loading cuisines: ${error.message}")
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("ReportViewModel", "Exception loading cuisines", e)
+            }
+        }
     }
 
     // REPORT TYPE MANAGEMENT
@@ -384,6 +412,66 @@ class ReportViewModel @Inject constructor(
 
                 val fileName = "Outward_Report_${report.filter.startDate}_to_${report.filter.endDate}.csv"
                 val file = createOutwardCsvReport(context, report, fileName)
+
+                withContext(Dispatchers.Main) {
+                    if (file != null) {
+                        Toast.makeText(context, "CSV saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                        openCsvFile(context, file)
+                    } else {
+                        Toast.makeText(context, "Failed to create CSV", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ReportViewModel", "Error exporting CSV", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    fun exportCuisineWiseReportToPdf(context: Context, report: CuisineWiseReport) {
+        viewModelScope.launch {
+            try {
+                Log.d("ReportViewModel", "Starting PDF export for cuisine-wise report")
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Creating PDF...", Toast.LENGTH_SHORT).show()
+                }
+
+                val cuisineSuffix = if (report.cuisineName != null) "_${report.cuisineName.replace(" ", "_")}" else "_All_Cuisines"
+                val fileName = "CuisineWise_Report${cuisineSuffix}_${report.filter.startDate}_to_${report.filter.endDate}.pdf"
+                val file = createCuisineWisePdfReport(context, report, fileName)
+
+                withContext(Dispatchers.Main) {
+                    if (file != null) {
+                        Toast.makeText(context, "PDF saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                        openPdfFile(context, file)
+                    } else {
+                        Toast.makeText(context, "Failed to create PDF", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ReportViewModel", "Error exporting PDF", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    fun exportCuisineWiseReportToCsv(context: Context, report: CuisineWiseReport) {
+        viewModelScope.launch {
+            try {
+                Log.d("ReportViewModel", "Starting CSV export for cuisine-wise report")
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Creating CSV...", Toast.LENGTH_SHORT).show()
+                }
+
+                val cuisineSuffix = if (report.cuisineName != null) "_${report.cuisineName.replace(" ", "_")}" else "_All_Cuisines"
+                val fileName = "CuisineWise_Report${cuisineSuffix}_${report.filter.startDate}_to_${report.filter.endDate}.csv"
+                val file = createCuisineWiseCsvReport(context, report, fileName)
 
                 withContext(Dispatchers.Main) {
                     if (file != null) {
@@ -1031,6 +1119,335 @@ class ReportViewModel @Inject constructor(
                 file
             } catch (e: Exception) {
                 Log.e("ReportViewModel", "Error creating outward CSV", e)
+                null
+            }
+        }
+    }
+
+    private suspend fun createCuisineWisePdfReport(context: Context, report: CuisineWiseReport, fileName: String): File? {
+        return withContext(Dispatchers.IO) {
+            try {
+                Log.d("ReportViewModel", "Creating cuisine-wise PDF with ${report.items.size} items")
+
+                // File path logic
+                val file = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
+                        ?: File(context.filesDir, "documents")
+                    if (!documentsDir.exists()) documentsDir.mkdirs()
+                    File(documentsDir, fileName)
+                } else {
+                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                    File(downloadsDir, fileName)
+                }
+
+                val pdfDocument = PdfDocument()
+                val pageInfo = PdfDocument.PageInfo.Builder(842, 595, 1).create() // A4 Landscape
+                val page = pdfDocument.startPage(pageInfo)
+                val canvas = page.canvas
+                val paint = Paint()
+
+                // Page margins
+                val leftMargin = 25f
+                val rightMargin = 817f
+                val topMargin = 25f
+                val availableWidth = rightMargin - leftMargin
+
+                var yPosition = topMargin
+
+                // Title
+                paint.textSize = 18f
+                paint.typeface = Typeface.DEFAULT_BOLD
+                paint.color = android.graphics.Color.rgb(34, 45, 50)
+                val title = if (report.cuisineName != null) {
+                    "CUISINE-WISE REPORT: ${report.cuisineName.uppercase()}"
+                } else {
+                    "CUISINE-WISE REPORT: ALL CUISINES"
+                }
+                canvas.drawText(title, leftMargin, yPosition, paint)
+                paint.color = android.graphics.Color.BLACK
+                yPosition += 28f
+
+                // Date range and generation info
+                paint.textSize = 10f
+                paint.typeface = Typeface.DEFAULT
+                canvas.drawText("Period: ${report.filter.startDate} to ${report.filter.endDate}", leftMargin, yPosition, paint)
+                canvas.drawText("Generated: ${getCurrentDateTime()}", rightMargin - 150f, yPosition, paint)
+                yPosition += 22f
+
+                // COMPREHENSIVE SUMMARY BOX
+                paint.textSize = 9f
+                val summaryHeight = 70f
+                paint.color = android.graphics.Color.rgb(245, 245, 245)
+                canvas.drawRect(leftMargin, yPosition, rightMargin, yPosition + summaryHeight, paint)
+                paint.color = android.graphics.Color.BLACK
+                paint.strokeWidth = 1f
+                canvas.drawRect(leftMargin, yPosition, rightMargin, yPosition + summaryHeight, paint)
+
+                paint.typeface = Typeface.DEFAULT_BOLD
+                paint.textSize = 11f
+                canvas.drawText("COMPREHENSIVE SUMMARY", leftMargin + 10f, yPosition + 15f, paint)
+
+                paint.typeface = Typeface.DEFAULT
+                paint.textSize = 8f
+
+                // Summary statistics
+                val uniqueItems = report.items.map { it.itemName }.distinct().size
+                val uniqueCategories = report.items.mapNotNull { it.categoryName }.distinct().size
+                val avgTransactionValue = if(report.totalTransactions > 0) report.totalValue.toDouble() / report.totalTransactions else 0.0
+                val avgQuantityPerTransaction = if(report.totalTransactions > 0) report.totalQuantity / report.totalTransactions else 0.0
+                val avgCostPerUnit = if(report.totalQuantity > 0) report.totalValue.toDouble() / report.totalQuantity else 0.0
+                val reportPeriod = calculateDateDifference(report.filter.startDate, report.filter.endDate)
+
+                canvas.drawText("Total Transactions: ${report.totalTransactions}", leftMargin + 10f, yPosition + 28f, paint)
+                canvas.drawText("Unique Items: $uniqueItems", leftMargin + 170f, yPosition + 28f, paint)
+                canvas.drawText("Unique Categories: $uniqueCategories", leftMargin + 300f, yPosition + 28f, paint)
+                canvas.drawText("Report Days: $reportPeriod", leftMargin + 500f, yPosition + 28f, paint)
+
+                canvas.drawText("Total Quantity: ${String.format("%.2f", report.totalQuantity)} units", leftMargin + 10f, yPosition + 42f, paint)
+                canvas.drawText("Avg Qty/Trans: ${String.format("%.2f", avgQuantityPerTransaction)}", leftMargin + 170f, yPosition + 42f, paint)
+                canvas.drawText("Avg Cost/Unit: ₹${String.format("%.2f", avgCostPerUnit)}", leftMargin + 300f, yPosition + 42f, paint)
+
+                canvas.drawText("Total Calculated Cost: ₹${String.format("%,.2f", report.totalValue.toDouble())}", leftMargin + 10f, yPosition + 56f, paint)
+                canvas.drawText("Avg Transaction Cost: ₹${String.format("%.2f", avgTransactionValue)}", leftMargin + 220f, yPosition + 56f, paint)
+
+                yPosition += summaryHeight + 8f
+
+                // CUISINE BREAKDOWN SECTION (if multiple cuisines)
+                if (report.cuisineBreakdown.isNotEmpty() && report.cuisineName == null) {
+                    paint.textSize = 10f
+                    paint.typeface = Typeface.DEFAULT_BOLD
+                    canvas.drawText("CUISINE BREAKDOWN", leftMargin, yPosition, paint)
+                    yPosition += 15f
+
+                    paint.textSize = 7f
+                    paint.typeface = Typeface.DEFAULT
+
+                    // Cuisine breakdown table headers
+                    val breakdownColumns = arrayOf(
+                        Pair("Cuisine", 150f),
+                        Pair("Transactions", 80f),
+                        Pair("Quantity", 80f),
+                        Pair("Total Cost", 80f),
+                        Pair("% of Total", 70f)
+                    )
+
+                    val breakdownRowHeight = 16f
+                    val breakdownHeaderHeight = 18f
+
+                    // Header background
+                    paint.color = android.graphics.Color.rgb(200, 200, 200)
+                    canvas.drawRect(leftMargin, yPosition, leftMargin + 460f, yPosition + breakdownHeaderHeight, paint)
+                    paint.color = android.graphics.Color.BLACK
+
+                    var breakdownX = leftMargin + 5f
+                    breakdownColumns.forEach { (header, width) ->
+                        canvas.drawText(header, breakdownX, yPosition + 12f, paint)
+                        breakdownX += width
+                    }
+
+                    yPosition += breakdownHeaderHeight
+
+                    // Cuisine breakdown data
+                    paint.textSize = 7f
+                    report.cuisineBreakdown.take(5).forEachIndexed { index, breakdown ->
+                        if (yPosition + breakdownRowHeight > 320f) return@forEachIndexed
+
+                        if (index % 2 == 0) {
+                            paint.color = android.graphics.Color.rgb(248, 248, 248)
+                            canvas.drawRect(leftMargin, yPosition, leftMargin + 460f, yPosition + breakdownRowHeight, paint)
+                            paint.color = android.graphics.Color.BLACK
+                        }
+
+                        breakdownX = leftMargin + 5f
+                        canvas.drawText(autoFitText(paint, breakdown.cuisineName, 140f), breakdownX, yPosition + 11f, paint)
+                        breakdownX += 150f
+                        canvas.drawText(breakdown.totalTransactions.toString(), breakdownX, yPosition + 11f, paint)
+                        breakdownX += 80f
+                        canvas.drawText(String.format("%.1f", breakdown.totalQuantity), breakdownX, yPosition + 11f, paint)
+                        breakdownX += 80f
+                        canvas.drawText(String.format("%.2f", breakdown.totalCost), breakdownX, yPosition + 11f, paint)
+                        breakdownX += 80f
+                        canvas.drawText(String.format("%.1f%%", breakdown.percentageOfTotal), breakdownX, yPosition + 11f, paint)
+
+                        yPosition += breakdownRowHeight
+                    }
+
+                    yPosition += 12f
+                }
+
+                // Transaction details table
+                val rowHeight = 18f
+                val headerHeight = 22f
+
+                val totalTableWidth = availableWidth - 10f
+                val columns = arrayOf(
+                    Pair("No", 30f),
+                    Pair("Item Name", 100f),
+                    Pair("Category", 60f),
+                    Pair("Cuisine", 60f),
+                    Pair("Date & Time", 70f),
+                    Pair("Qty", 35f),
+                    Pair("Unit", 40f),
+                    Pair("Total Cost", 55f),
+                    Pair("Method", 60f),
+                    Pair("User", 70f)
+                )
+
+                val totalDefinedWidth = columns.map { it.second }.sum()
+                val scaleFactor = if (totalDefinedWidth > totalTableWidth) totalTableWidth / totalDefinedWidth else 1.0f
+                val adjustedColumns = columns.map { Pair(it.first, it.second * scaleFactor) }.toTypedArray()
+
+                val columnPositions = mutableListOf<Float>()
+                var currentX = leftMargin + 5f
+                columnPositions.add(currentX)
+
+                adjustedColumns.forEach { (_, width) ->
+                    currentX += width
+                    columnPositions.add(currentX)
+                }
+
+                // Draw table headers
+                paint.textSize = 7f
+                paint.typeface = Typeface.DEFAULT_BOLD
+
+                paint.color = android.graphics.Color.rgb(200, 200, 200)
+                canvas.drawRect(columnPositions.first(), yPosition, columnPositions.last(), yPosition + headerHeight, paint)
+                paint.color = android.graphics.Color.BLACK
+
+                adjustedColumns.forEachIndexed { index, (header, width) ->
+                    val textX = columnPositions[index] + (width / 2) - (paint.measureText(header) / 2)
+                    canvas.drawText(header, textX, yPosition + 14f, paint)
+                }
+
+                drawEnhancedTableBorders(canvas, paint, columnPositions, yPosition, headerHeight)
+                yPosition += headerHeight
+
+                // Table data
+                paint.textSize = 6.5f
+                paint.typeface = Typeface.DEFAULT
+                paint.color = android.graphics.Color.BLACK
+
+                report.items.forEachIndexed { index, item ->
+                    if (yPosition + rowHeight > 570f) {
+                        paint.typeface = Typeface.DEFAULT_BOLD
+                        canvas.drawText("... ${report.items.size - index} more items (continued in full CSV export)", leftMargin + 5f, yPosition + 15f, paint)
+                        return@forEachIndexed
+                    }
+
+                    val rowData = arrayOf(
+                        (index + 1).toString(),
+                        autoFitText(paint, item.itemName, adjustedColumns[1].second - 8f),
+                        autoFitText(paint, item.categoryName ?: "", adjustedColumns[2].second - 8f),
+                        autoFitText(paint, item.cuisineName ?: "", adjustedColumns[3].second - 8f),
+                        autoFitText(paint, item.usageDate, adjustedColumns[4].second - 8f),
+                        String.format("%.1f", item.outwardQuantity),
+                        autoFitText(paint, item.unitOfMeasure, adjustedColumns[6].second - 8f),
+                        String.format("%.2f", item.calculatedTotalCost),
+                        autoFitText(paint, item.costCalculationMethod, adjustedColumns[8].second - 8f),
+                        autoFitText(paint, item.chefName ?: "N/A", adjustedColumns[9].second - 8f)
+                    )
+
+                    if (index % 2 == 0) {
+                        paint.color = android.graphics.Color.rgb(248, 248, 248)
+                        canvas.drawRect(columnPositions.first(), yPosition, columnPositions.last(), yPosition + rowHeight, paint)
+                        paint.color = android.graphics.Color.BLACK
+                    }
+
+                    rowData.forEachIndexed { colIndex, data ->
+                        val textX = columnPositions[colIndex] + (adjustedColumns[colIndex].second / 2) - (paint.measureText(data) / 2)
+                        canvas.drawText(data, textX, yPosition + 12f, paint)
+                    }
+
+                    drawEnhancedTableBorders(canvas, paint, columnPositions, yPosition, rowHeight)
+                    yPosition += rowHeight
+                }
+
+                // Footer
+                paint.textSize = 7f
+                paint.typeface = Typeface.DEFAULT
+                canvas.drawText("Report Generated by Attil Inventory Management System", leftMargin, 585f, paint)
+                canvas.drawText("Page 1 of 1", rightMargin - 60f, 585f, paint)
+
+                pdfDocument.finishPage(page)
+
+                val fileOutputStream = FileOutputStream(file)
+                pdfDocument.writeTo(fileOutputStream)
+                fileOutputStream.close()
+                pdfDocument.close()
+
+                Log.d("ReportViewModel", "Cuisine-wise PDF saved to: ${file.absolutePath}")
+                file
+            } catch (e: Exception) {
+                Log.e("ReportViewModel", "Error creating cuisine-wise PDF", e)
+                null
+            }
+        }
+    }
+
+    private suspend fun createCuisineWiseCsvReport(context: Context, report: CuisineWiseReport, fileName: String): File? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val csvContent = buildString {
+                    // Title
+                    if (report.cuisineName != null) {
+                        appendLine("CUISINE-WISE REPORT: ${report.cuisineName}")
+                    } else {
+                        appendLine("CUISINE-WISE REPORT: ALL CUISINES")
+                    }
+                    appendLine()
+
+                    // Cuisine Breakdown (if multiple cuisines)
+                    if (report.cuisineBreakdown.isNotEmpty() && report.cuisineName == null) {
+                        appendLine("CUISINE BREAKDOWN")
+                        appendLine("Cuisine,Transactions,Quantity,Total Cost,% of Total")
+                        report.cuisineBreakdown.forEach { breakdown ->
+                            appendLine("\"${breakdown.cuisineName}\",${breakdown.totalTransactions},${String.format("%.2f", breakdown.totalQuantity)},${String.format("%.2f", breakdown.totalCost)},${String.format("%.1f", breakdown.percentageOfTotal)}")
+                        }
+                        appendLine()
+                    }
+
+                    // Transaction Details
+                    appendLine("TRANSACTION DETAILS")
+                    appendLine("S.No,Item Name,Category,Cuisine,Date & Time,Quantity,Unit,Total Cost,Cost Calculation Method,User (Chef Name)")
+
+                    report.items.forEachIndexed { index, item ->
+                        appendLine("${index + 1},\"${item.itemName}\",\"${item.categoryName ?: ""}\",\"${item.cuisineName ?: ""}\",\"${item.usageDate}\",${item.outwardQuantity},\"${item.unitOfMeasure}\",${item.calculatedTotalCost},\"${item.costCalculationMethod}\",\"${item.chefName ?: "N/A"}\"")
+                    }
+
+                    // Summary
+                    appendLine()
+                    appendLine("COMPREHENSIVE SUMMARY")
+                    appendLine("Total Transactions,${report.totalTransactions}")
+                    appendLine("Total Quantity,${report.totalQuantity}")
+                    appendLine("Total Calculated Cost,${report.totalValue}")
+                    appendLine("Unique Items,${report.items.map { it.itemName }.distinct().size}")
+                    appendLine("Unique Categories,${report.items.mapNotNull { it.categoryName }.distinct().size}")
+                    appendLine("Items with Calculated Costs,${report.items.count { it.calculatedCostPerUnit > 0 }}")
+                    appendLine("Average Transaction Cost,${if(report.totalTransactions > 0) report.totalValue.toDouble() / report.totalTransactions else 0.0}")
+                    appendLine("Average Cost Per Unit,${if(report.totalQuantity > 0) report.totalValue.toDouble() / report.totalQuantity else 0.0}")
+                    appendLine("Date Range,${report.filter.startDate} to ${report.filter.endDate}")
+                    appendLine("Report Generated,${getCurrentDateTime()}")
+                }
+
+                // Save file
+                val file = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
+                        ?: File(context.filesDir, "documents")
+                    if (!documentsDir.exists()) documentsDir.mkdirs()
+                    File(documentsDir, fileName)
+                } else {
+                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                    File(downloadsDir, fileName)
+                }
+
+                file.writeText(csvContent)
+
+                Log.d("ReportViewModel", "Cuisine-wise CSV saved to: ${file.absolutePath}")
+                file
+            } catch (e: Exception) {
+                Log.e("ReportViewModel", "Error creating cuisine-wise CSV", e)
                 null
             }
         }
