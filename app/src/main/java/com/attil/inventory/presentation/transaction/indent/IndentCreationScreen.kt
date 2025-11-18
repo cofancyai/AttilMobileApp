@@ -130,6 +130,11 @@ private fun ItemSelectionStep(
     chefId: String,
     onNext: () -> Unit
 ) {
+    // Load chef's assigned cuisines when screen opens
+    LaunchedEffect(chefId) {
+        viewModel.loadChefCuisines(chefId)
+    }
+
     // Get current date
     val currentDate = remember {
         LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy"))
@@ -262,19 +267,158 @@ private fun ItemSelectionStep(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Purpose
-                    OutlinedTextField(
-                        value = uiState.purpose,
-                        onValueChange = viewModel::setPurpose,
-                        label = { Text("Purpose *", color = Color(0xFF666666)) },
-                        placeholder = { Text("Purpose of this indent", color = Color(0xFF999999)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF667eea),
-                            focusedTextColor = Color(0xFF333333),
-                            unfocusedTextColor = Color(0xFF333333)
+                    // Cuisine Selection (From Chef's Assigned Cuisines)
+                    var cuisineDropdownExpanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = uiState.selectedCuisine?.name ?: "Select Cuisine",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Cuisine *", color = Color(0xFF666666)) },
+                            trailingIcon = {
+                                IconButton(onClick = { cuisineDropdownExpanded = !cuisineDropdownExpanded }) {
+                                    Icon(
+                                        if (cuisineDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                        contentDescription = "Select Cuisine",
+                                        tint = Color(0xFF667eea)
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF667eea),
+                                focusedTextColor = Color(0xFF333333),
+                                unfocusedTextColor = Color(0xFF333333)
+                            )
                         )
-                    )
+
+                        DropdownMenu(
+                            expanded = cuisineDropdownExpanded,
+                            onDismissRequest = { cuisineDropdownExpanded = false },
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .background(Color.White)
+                        ) {
+                            uiState.cuisines.forEach { cuisine ->
+                                DropdownMenuItem(
+                                    text = { Text(cuisine.name, color = Color(0xFF333333)) },
+                                    onClick = {
+                                        viewModel.selectCuisine(cuisine)
+                                        cuisineDropdownExpanded = false
+                                    }
+                                )
+                            }
+                            if (uiState.cuisines.isEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("No cuisines assigned", color = Color.Gray) },
+                                    onClick = { },
+                                    enabled = false
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Priority Selection
+                    var priorityDropdownExpanded by remember { mutableStateOf(false) }
+                    val priorities = listOf("Low", "Medium", "High", "Urgent")
+                    val selectedPriority = uiState.priority.ifEmpty { "Medium" }
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = selectedPriority,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Priority *", color = Color(0xFF666666)) },
+                            trailingIcon = {
+                                IconButton(onClick = { priorityDropdownExpanded = !priorityDropdownExpanded }) {
+                                    Icon(
+                                        if (priorityDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                        contentDescription = "Select Priority",
+                                        tint = Color(0xFF667eea)
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF667eea),
+                                focusedTextColor = Color(0xFF333333),
+                                unfocusedTextColor = Color(0xFF333333)
+                            )
+                        )
+
+                        DropdownMenu(
+                            expanded = priorityDropdownExpanded,
+                            onDismissRequest = { priorityDropdownExpanded = false },
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .background(Color.White)
+                        ) {
+                            priorities.forEach { priority ->
+                                DropdownMenuItem(
+                                    text = { Text(priority, color = Color(0xFF333333)) },
+                                    onClick = {
+                                        viewModel.setPriority(priority)
+                                        priorityDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Usage/Purpose Selection (From Usages Table)
+                    var usageDropdownExpanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = uiState.selectedUsage?.name ?: uiState.purpose.ifEmpty { "Select Usage/Purpose" },
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Usage/Purpose *", color = Color(0xFF666666)) },
+                            trailingIcon = {
+                                IconButton(onClick = { usageDropdownExpanded = !usageDropdownExpanded }) {
+                                    Icon(
+                                        if (usageDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                        contentDescription = "Select Usage",
+                                        tint = Color(0xFF667eea)
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF667eea),
+                                focusedTextColor = Color(0xFF333333),
+                                unfocusedTextColor = Color(0xFF333333)
+                            )
+                        )
+
+                        DropdownMenu(
+                            expanded = usageDropdownExpanded,
+                            onDismissRequest = { usageDropdownExpanded = false },
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .background(Color.White)
+                        ) {
+                            uiState.usages.forEach { usage ->
+                                DropdownMenuItem(
+                                    text = { Text(usage.name, color = Color(0xFF333333)) },
+                                    onClick = {
+                                        viewModel.selectUsage(usage)
+                                        usageDropdownExpanded = false
+                                    }
+                                )
+                            }
+                            if (uiState.usages.isEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("No usages available", color = Color.Gray) },
+                                    onClick = { },
+                                    enabled = false
+                                )
+                            }
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
