@@ -67,7 +67,8 @@ data class FulfillmentItem(
 class IndentViewModel @Inject constructor(
     private val repository: IndentRepository,
     private val cuisineRepository: CuisineRepository,
-    private val outwardRepository: OutwardRepository
+    private val outwardRepository: OutwardRepository,
+    private val userRepository: com.attil.inventory.data.repository.UserRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(IndentUiState())
@@ -335,11 +336,27 @@ class IndentViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isCreating = true, error = null)
 
             try {
-                // Use first available cuisine as default if not selected
-                // In a real app, this would come from the chef's profile/assigned cuisine
-                val cuisineId = _uiState.value.selectedCuisine?.id
+                // Fetch chef's cuisine from user profile
+                var chefCuisineId: String? = null
+                userRepository.getUserById(chefId).collect { userResult ->
+                    userResult.onSuccess { user ->
+                        chefCuisineId = user?.cuisineId
+                    }
+                }
+
+                // Use chef's assigned cuisine, or fall back to first available cuisine
+                val cuisineId = chefCuisineId
+                    ?: _uiState.value.selectedCuisine?.id
                     ?: _uiState.value.cuisines.firstOrNull()?.id
                     ?: ""
+
+                if (cuisineId.isEmpty()) {
+                    _uiState.value = _uiState.value.copy(
+                        isCreating = false,
+                        error = "No cuisine assigned to chef. Please contact administrator."
+                    )
+                    return@launch
+                }
 
                 val indentRequest = CreateIndentRequest(
                     chefId = chefId,

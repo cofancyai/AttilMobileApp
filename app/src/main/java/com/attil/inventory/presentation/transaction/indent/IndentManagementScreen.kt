@@ -361,6 +361,11 @@ private fun IndentCard(
                         color = Color(0xFF666666)
                     )
                     Text(
+                        text = "Chef: ${indent.chef?.fullName ?: "Unknown"}",
+                        fontSize = 12.sp,
+                        color = Color(0xFF666666)
+                    )
+                    Text(
                         text = "Required: ${indent.requiredDate}",
                         fontSize = 12.sp,
                         color = Color(0xFF666666)
@@ -441,6 +446,7 @@ private fun IndentDetailsDialog(
                     Column {
                         DetailRow("Indent ID", indent.id?.take(12) ?: "Unknown")
                         DetailRow("Cuisine", indent.cuisines?.name ?: "Unknown")
+                        DetailRow("Chef", indent.chef?.fullName ?: "Unknown")
                         DetailRow("Required Date", indent.requiredDate)
                         DetailRow("Required Time", indent.requiredTime)
                         DetailRow("Priority", indent.priority)
@@ -596,6 +602,7 @@ private fun VerificationDialog(
                         // Header Information
                         DetailRow("Indent ID", indent.id?.take(12) ?: "Unknown")
                         DetailRow("Cuisine", indent.cuisines?.name ?: "Unknown")
+                        DetailRow("Chef", indent.chef?.fullName ?: "Unknown")
                         DetailRow("Required Date", indent.requiredDate)
                         DetailRow("Status", "Fulfilled")
                         DetailRow("Purpose", indent.purpose)

@@ -13,24 +13,24 @@ import retrofit2.http.*
 interface IndentApiService {
 
     @GET("indents")
-    suspend fun getAllIndents(@Query("select") select: String = "*,cuisines(*),indent_items(*,items(*))"): Response<List<Indent>>
+    suspend fun getAllIndents(@Query("select") select: String = "*,cuisines(*),indent_items(*,items(*)),users(id,username,full_name,cuisine_id)"): Response<List<Indent>>
 
     @GET("indents")
     suspend fun getIndentsByChef(
         @Query("chef_id") chefId: String,
-        @Query("select") select: String = "*,cuisines(*),indent_items(*,items(*))"
+        @Query("select") select: String = "*,cuisines(*),indent_items(*,items(*)),users(id,username,full_name,cuisine_id)"
     ): Response<List<Indent>>
 
     @GET("indents")
     suspend fun getIndentsByStatus(
         @Query("status") status: String,
-        @Query("select") select: String = "*,cuisines(*),indent_items(*,items(*))"
+        @Query("select") select: String = "*,cuisines(*),indent_items(*,items(*)),users(id,username,full_name,cuisine_id)"
     ): Response<List<Indent>>
 
     @GET("indents")
     suspend fun getIndentById(
         @Query("id") id: String,
-        @Query("select") select: String = "*,cuisines(*),indent_items(*,items(*))"
+        @Query("select") select: String = "*,cuisines(*),indent_items(*,items(*)),users(id,username,full_name,cuisine_id)"
     ): Response<List<Indent>>
 
     @POST("indents")

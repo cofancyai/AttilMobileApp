@@ -71,9 +71,17 @@ data class User(
     @JsonAdapter(ScreenPermissionsDeserializer::class)
     val screenPermissions: List<String>? = null,
 
+    // Cuisine assignment for chefs
+    @SerializedName("cuisine_id")
+    val cuisineId: String? = null,
+
     // Nested role information when joined
     @SerializedName("roles")
-    val role: Role? = null
+    val role: Role? = null,
+
+    // Nested cuisine information when joined
+    @SerializedName("cuisines")
+    val cuisine: com.attil.inventory.data.model.management.Cuisine? = null
 ) {
     // Helper function to check if user has permission for a specific screen
     fun hasScreenPermission(screenRoute: String): Boolean {
@@ -106,6 +114,9 @@ data class CreateUserRequest(
     @SerializedName("role_id")
     val roleId: String? = null,
 
+    @SerializedName("cuisine_id")
+    val cuisineId: String? = null,
+
     @SerializedName("is_active")
     val isActive: Boolean = true,
 
@@ -128,6 +139,9 @@ data class UpdateUserRequest(
 
     @SerializedName("role_id")
     val roleId: String? = null,
+
+    @SerializedName("cuisine_id")
+    val cuisineId: String? = null,
 
     @SerializedName("is_active")
     val isActive: Boolean? = null,
