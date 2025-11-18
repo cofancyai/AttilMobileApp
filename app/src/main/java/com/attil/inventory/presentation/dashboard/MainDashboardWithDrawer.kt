@@ -262,7 +262,6 @@ fun MainDashboardWithDrawer(
                                     currentScreen = when(reportType) {
                                         ReportType.INWARD -> "inward_report"
                                         ReportType.OUTWARD -> "outward_report"
-                                        ReportType.CUISINE_WISE -> "cuisine_wise_report"
                                     }
                                 }
                             )
@@ -284,16 +283,6 @@ fun MainDashboardWithDrawer(
                         if (userPermissions.contains("inventory_reports")) {
                             InventoryReportsScreen(
                                 reportType = ReportType.OUTWARD,
-                                onBackClick = { currentScreen = "inventory_reports" }
-                            )
-                        } else {
-                            UnauthorizedScreen(onBackClick = { currentScreen = "dashboard" })
-                        }
-                    }
-                    "cuisine_wise_report" -> {
-                        if (userPermissions.contains("inventory_reports")) {
-                            InventoryReportsScreen(
-                                reportType = ReportType.CUISINE_WISE,
                                 onBackClick = { currentScreen = "inventory_reports" }
                             )
                         } else {
