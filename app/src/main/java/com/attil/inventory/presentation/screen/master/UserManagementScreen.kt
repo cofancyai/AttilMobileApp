@@ -17,6 +17,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.attil.inventory.data.model.master.User
 import com.attil.inventory.presentation.viewmodel.UserViewModel
@@ -175,8 +177,10 @@ fun UserManagementScreen(
             user = null,
             cuisines = cuisines,
             onDismiss = { showCreateDialog = false },
-            onConfirm = { username, password, fullName, phone, cuisineId ->
-                viewModel.createUser(username, "$username@restaurant.com", password, fullName, phone, null, cuisineId, true)
+            onConfirm = { username, password, fullName, phone, cuisineIds ->
+                // For backward compatibility, use first cuisine ID
+                // TODO: Update to handle multiple cuisines after user_cuisines table is set up
+                viewModel.createUser(username, "$username@restaurant.com", password, fullName, phone, null, cuisineIds.firstOrNull(), true)
                 showCreateDialog = false
             }
         )
@@ -188,9 +192,11 @@ fun UserManagementScreen(
             user = selectedUser,
             cuisines = cuisines,
             onDismiss = { showEditDialog = false },
-            onConfirm = { username, _, fullName, phone, cuisineId ->
+            onConfirm = { username, _, fullName, phone, cuisineIds ->
                 selectedUser?.let { user ->
-                    viewModel.updateUser(user.id, username, user.email, fullName, phone, user.roleId, cuisineId, user.isActive)
+                    // For backward compatibility, use first cuisine ID
+                    // TODO: Update to handle multiple cuisines after user_cuisines table is set up
+                    viewModel.updateUser(user.id, username, user.email, fullName, phone, user.roleId, cuisineIds.firstOrNull(), user.isActive)
                 }
                 showEditDialog = false
             }
@@ -363,15 +369,14 @@ fun UserDialog(
     user: User?,
     cuisines: List<com.attil.inventory.data.model.management.Cuisine>,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String, String?, String?) -> Unit
+    onConfirm: (String, String, String, String?, List<String>) -> Unit
 ) {
     var username by remember { mutableStateOf(user?.username ?: "") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf(user?.fullName ?: "") }
     var phone by remember { mutableStateOf(user?.phone ?: "") }
-    var selectedCuisineId by remember { mutableStateOf(user?.cuisineId) }
-    var cuisineDropdownExpanded by remember { mutableStateOf(false) }
+    var selectedCuisineIds by remember { mutableStateOf(user?.getCuisineIds() ?: emptyList()) }
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
 
@@ -478,50 +483,64 @@ fun UserDialog(
                     )
                 )
 
-                // Cuisine (Optional)
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = cuisines.find { it.id == selectedCuisineId }?.name ?: "",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Cuisine (Optional)", color = Color.Black) },
-                        trailingIcon = {
-                            IconButton(onClick = { cuisineDropdownExpanded = !cuisineDropdownExpanded }) {
-                                Icon(
-                                    if (cuisineDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
-                                    contentDescription = "Dropdown",
-                                    tint = Color.Black
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.Black,
-                            unfocusedTextColor = Color.Black,
-                            disabledTextColor = Color.Black
-                        )
+                // Assign Cuisines (Multiple Selection with Checkboxes)
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Assign Cuisines (Optional)",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.Black,
+                        modifier = Modifier.padding(bottom = 8.dp)
                     )
 
-                    DropdownMenu(
-                        expanded = cuisineDropdownExpanded,
-                        onDismissRequest = { cuisineDropdownExpanded = false },
-                        modifier = Modifier.fillMaxWidth()
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("None", color = Color.Black) },
-                            onClick = {
-                                selectedCuisineId = null
-                                cuisineDropdownExpanded = false
-                            }
-                        )
-                        cuisines.forEach { cuisine ->
-                            DropdownMenuItem(
-                                text = { Text(cuisine.name, color = Color.Black) },
-                                onClick = {
-                                    selectedCuisineId = cuisine.id
-                                    cuisineDropdownExpanded = false
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            if (cuisines.isEmpty()) {
+                                Text(
+                                    text = "No cuisines available",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray,
+                                    modifier = Modifier.padding(8.dp)
+                                )
+                            } else {
+                                cuisines.forEach { cuisine ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Checkbox(
+                                            checked = selectedCuisineIds.contains(cuisine.id),
+                                            onCheckedChange = { isChecked ->
+                                                selectedCuisineIds = if (isChecked) {
+                                                    selectedCuisineIds + cuisine.id
+                                                } else {
+                                                    selectedCuisineIds - cuisine.id
+                                                }
+                                            },
+                                            colors = CheckboxDefaults.colors(
+                                                checkedColor = Color(0xFF1976D2),
+                                                uncheckedColor = Color.Gray
+                                            )
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = cuisine.name,
+                                            fontSize = 14.sp,
+                                            color = Color.Black
+                                        )
+                                    }
                                 }
-                            )
+                            }
                         }
                     }
                 }
@@ -535,7 +554,7 @@ fun UserDialog(
                     val isValidForEdit = user != null && username.isNotBlank() && fullName.isNotBlank()
 
                     if (isValidForCreate || isValidForEdit) {
-                        onConfirm(username, password, fullName, phone.takeIf { it.isNotBlank() }, selectedCuisineId)
+                        onConfirm(username, password, fullName, phone.takeIf { it.isNotBlank() }, selectedCuisineIds)
                     }
                 },
                 enabled = if (user == null) {
