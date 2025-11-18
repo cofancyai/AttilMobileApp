@@ -713,6 +713,7 @@ private fun OutwardItemCard(item: OutwardReportItem) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
+                    Text("Chef: ${item.chefName ?: "N/A"}", fontSize = 12.sp, color = Color(0xFF666666))
                     Text("Cuisine: ${item.cuisineName ?: "N/A"}", fontSize = 12.sp, color = Color(0xFF666666))
                     Text("Category: ${item.categoryName ?: "N/A"}", fontSize = 12.sp, color = Color(0xFF666666))
                     Text("Date: ${item.usageDate}", fontSize = 12.sp, color = Color(0xFF666666))
