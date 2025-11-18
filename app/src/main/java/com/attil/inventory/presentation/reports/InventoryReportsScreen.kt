@@ -40,13 +40,9 @@ fun InventoryReportsScreen(
 
     val inwardReport by viewModel.inwardReport.collectAsState()
     val outwardReport by viewModel.outwardReport.collectAsState()
-    val cuisineWiseReport by viewModel.cuisineWiseReport.collectAsState()
-    val selectedCuisineId by viewModel.selectedCuisineId.collectAsState()
-    val cuisines by viewModel.cuisines.collectAsState()
 
     var showDatePicker by remember { mutableStateOf(false) }
     var isDatePickerForStart by remember { mutableStateOf(true) }
-    var cuisineDropdownExpanded by remember { mutableStateOf(false) }
 
     // Set report type when screen loads
     LaunchedEffect(reportType) {
@@ -87,7 +83,6 @@ fun InventoryReportsScreen(
                             text = when (reportType) {
                                 ReportType.INWARD -> "Inward Report"
                                 ReportType.OUTWARD -> "Outward Report"
-                                ReportType.CUISINE_WISE -> "Cuisine-Wise Report"
                             },
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Bold,
@@ -96,8 +91,7 @@ fun InventoryReportsScreen(
                         Text(
                             text = when (reportType) {
                                 ReportType.INWARD -> "Track inventory purchases and receipts"
-                                ReportType.OUTWARD -> "Monitor inventory consumption and usage with calculated costs"
-                                ReportType.CUISINE_WISE -> "Analyze consumption patterns by cuisine with breakdown"
+                                ReportType.OUTWARD -> "Monitor inventory consumption and usage with filters"
                             },
                             fontSize = 14.sp,
                             color = Color(0xFF666666)
@@ -164,73 +158,6 @@ fun InventoryReportsScreen(
                         )
                     }
                 }
-
-                // Cuisine Filter (only for CUISINE_WISE report)
-                if (reportType == ReportType.CUISINE_WISE) {
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(
-                            onClick = { cuisineDropdownExpanded = !cuisineDropdownExpanded },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                Icons.Default.Restaurant,
-                                contentDescription = "Cuisine",
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (selectedCuisineId == null) {
-                                    "All Cuisines"
-                                } else {
-                                    cuisines.find { it.id == selectedCuisineId }?.name ?: "Select Cuisine"
-                                },
-                                fontSize = 14.sp
-                            )
-                            Spacer(modifier = Modifier.weight(1f))
-                            Icon(
-                                if (cuisineDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
-                                contentDescription = "Dropdown"
-                            )
-                        }
-
-                        DropdownMenu(
-                            expanded = cuisineDropdownExpanded,
-                            onDismissRequest = { cuisineDropdownExpanded = false },
-                            modifier = Modifier
-                                .fillMaxWidth(0.9f)
-                                .background(Color.White)
-                        ) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        "All Cuisines",
-                                        color = Color(0xFF333333)
-                                    )
-                                },
-                                onClick = {
-                                    viewModel.setSelectedCuisineId(null)
-                                    cuisineDropdownExpanded = false
-                                }
-                            )
-                            cuisines.forEach { cuisine ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            cuisine.name,
-                                            color = Color(0xFF333333)
-                                        )
-                                    },
-                                    onClick = {
-                                        viewModel.setSelectedCuisineId(cuisine.id)
-                                        cuisineDropdownExpanded = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
             }
         }
 
@@ -259,9 +186,6 @@ fun InventoryReportsScreen(
                             ReportType.OUTWARD -> outwardReport?.let {
                                 viewModel.exportOutwardReportToPdf(context, it)
                             }
-                            ReportType.CUISINE_WISE -> cuisineWiseReport?.let {
-                                viewModel.exportCuisineWiseReportToPdf(context, it)
-                            }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -287,9 +211,6 @@ fun InventoryReportsScreen(
                             }
                             ReportType.OUTWARD -> outwardReport?.let {
                                 viewModel.exportOutwardReportToCsv(context, it)
-                            }
-                            ReportType.CUISINE_WISE -> cuisineWiseReport?.let {
-                                viewModel.exportCuisineWiseReportToCsv(context, it)
                             }
                         }
                     },
@@ -390,14 +311,6 @@ fun InventoryReportsScreen(
                     ReportType.OUTWARD -> {
                         outwardReport?.let { report ->
                             OutwardReportContent(
-                                report = report,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                    }
-                    ReportType.CUISINE_WISE -> {
-                        cuisineWiseReport?.let { report ->
-                            CuisineWiseReportContent(
                                 report = report,
                                 modifier = Modifier.fillMaxSize()
                             )
@@ -618,106 +531,6 @@ private fun OutwardItemCard(item: OutwardReportItem) {
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CuisineWiseReportContent(
-    report: CuisineWiseReport,
-    modifier: Modifier = Modifier
-) {
-    LazyColumn(
-        modifier = modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            SummaryCard(
-                title = if (report.cuisineName == null) "All Cuisines Summary" else "${report.cuisineName} Summary",
-                items = listOf(
-                    "Total Transactions" to report.totalTransactions.toString(),
-                    "Total Quantity" to String.format("%.2f", report.totalQuantity),
-                    "Total Calculated Cost" to "₹${NumberFormat.getInstance().format(report.totalValue)}",
-                    "Date Range" to "${report.filter.startDate} to ${report.filter.endDate}"
-                ),
-                backgroundColor = Color(0xFFFFE8F5)
-            )
-        }
-
-        // Cuisine Breakdown Section
-        if (report.cuisineBreakdown.isNotEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5FF)),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Text(
-                            text = "Cuisine Breakdown",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF333333)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        report.cuisineBreakdown.forEach { breakdown ->
-                            CuisineBreakdownCard(breakdown = breakdown)
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                    }
-                }
-            }
-        }
-
-        items(report.items) { item ->
-            OutwardItemCard(item = item)
-        }
-    }
-}
-
-@Composable
-private fun CuisineBreakdownCard(breakdown: CuisineBreakdownItem) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = breakdown.cuisineName,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF6200EA)
-                )
-                Text(
-                    text = "${String.format("%.1f", breakdown.percentageOfTotal)}%",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF6200EA)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("Transactions: ${breakdown.totalTransactions}", fontSize = 12.sp, color = Color(0xFF666666))
-                Text("Qty: ${String.format("%.2f", breakdown.totalQuantity)}", fontSize = 12.sp, color = Color(0xFF666666))
-                Text("Cost: ₹${String.format("%.2f", breakdown.totalCost)}", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF333333))
             }
         }
     }

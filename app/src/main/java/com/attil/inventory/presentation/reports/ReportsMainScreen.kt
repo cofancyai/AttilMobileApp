@@ -101,19 +101,10 @@ fun ReportsMainScreen(
                 // Outward Report Card
                 ReportCard(
                     title = "Outward Report",
-                    description = "Monitor inventory consumption and usage",
+                    description = "Monitor inventory consumption and usage with filters",
                     icon = Icons.Default.CallMade,
                     color = Color(0xFFFF5722),
                     onClick = { onReportSelected(ReportType.OUTWARD) }
-                )
-
-                // Cuisine-Wise Report Card
-                ReportCard(
-                    title = "Cuisine-Wise Report",
-                    description = "Analyze consumption patterns by cuisine with breakdown",
-                    icon = Icons.Default.Restaurant,
-                    color = Color(0xFF9C27B0),
-                    onClick = { onReportSelected(ReportType.CUISINE_WISE) }
                 )
 
                 Spacer(modifier = Modifier.weight(1f))

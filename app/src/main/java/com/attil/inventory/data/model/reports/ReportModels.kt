@@ -12,8 +12,7 @@ data class ReportFilter(
 // Report Types
 enum class ReportType {
     INWARD,
-    OUTWARD,
-    CUISINE_WISE
+    OUTWARD
 }
 
 // INWARD REPORT MODELS
