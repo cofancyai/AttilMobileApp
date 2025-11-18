@@ -151,6 +151,7 @@ class MainActivity : ComponentActivity() {
                                     currentScreen = when(reportType) {
                                         ReportType.INWARD -> "inward_report"
                                         ReportType.OUTWARD -> "outward_report"
+                                        ReportType.CUISINE_WISE -> "cuisine_wise_report"
                                     }
                                 }
                             )
@@ -164,6 +165,12 @@ class MainActivity : ComponentActivity() {
                         "outward_report" -> {
                             InventoryReportsScreen(
                                 reportType = ReportType.OUTWARD,
+                                onBackClick = { currentScreen = "inventory_reports" }
+                            )
+                        }
+                        "cuisine_wise_report" -> {
+                            InventoryReportsScreen(
+                                reportType = ReportType.CUISINE_WISE,
                                 onBackClick = { currentScreen = "inventory_reports" }
                             )
                         }

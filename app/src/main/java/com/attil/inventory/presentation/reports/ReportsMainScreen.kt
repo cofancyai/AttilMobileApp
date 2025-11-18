@@ -107,6 +107,15 @@ fun ReportsMainScreen(
                     onClick = { onReportSelected(ReportType.OUTWARD) }
                 )
 
+                // Cuisine-Wise Report Card
+                ReportCard(
+                    title = "Cuisine-Wise Report",
+                    description = "Analyze consumption patterns by cuisine with breakdown",
+                    icon = Icons.Default.Restaurant,
+                    color = Color(0xFF9C27B0),
+                    onClick = { onReportSelected(ReportType.CUISINE_WISE) }
+                )
+
                 Spacer(modifier = Modifier.weight(1f))
             }
         }
