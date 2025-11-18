@@ -15,8 +15,12 @@ import android.os.Build
 import androidx.core.content.FileProvider
 import com.attil.inventory.data.model.reports.*
 import com.attil.inventory.data.model.management.Cuisine
+import com.attil.inventory.data.model.management.Category
+import com.attil.inventory.data.model.management.Usage
 import com.attil.inventory.data.repository.ReportRepository
 import com.attil.inventory.data.repository.CuisineRepository
+import com.attil.inventory.data.repository.CategoryRepository
+import com.attil.inventory.data.repository.UsageRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,7 +38,9 @@ import javax.inject.Inject
 @HiltViewModel
 class ReportViewModel @Inject constructor(
     private val reportRepository: ReportRepository,
-    private val cuisineRepository: CuisineRepository
+    private val cuisineRepository: CuisineRepository,
+    private val categoryRepository: CategoryRepository,
+    private val usageRepository: UsageRepository
 ) : ViewModel() {
 
     // Common state
@@ -51,9 +57,15 @@ class ReportViewModel @Inject constructor(
     private val _currentReportType = MutableStateFlow(ReportType.INWARD)
     val currentReportType: StateFlow<ReportType> = _currentReportType.asStateFlow()
 
-    // Cuisines for filtering
+    // Master data for filtering
     private val _cuisines = MutableStateFlow<List<Cuisine>>(emptyList())
     val cuisines: StateFlow<List<Cuisine>> = _cuisines.asStateFlow()
+
+    private val _categories = MutableStateFlow<List<Category>>(emptyList())
+    val categories: StateFlow<List<Category>> = _categories.asStateFlow()
+
+    private val _usages = MutableStateFlow<List<Usage>>(emptyList())
+    val usages: StateFlow<List<Usage>> = _usages.asStateFlow()
 
     // Date filter state
     private val _startDate = MutableStateFlow(getDefaultStartDate())
@@ -61,6 +73,16 @@ class ReportViewModel @Inject constructor(
 
     private val _endDate = MutableStateFlow(getDefaultEndDate())
     val endDate: StateFlow<String> = _endDate.asStateFlow()
+
+    // Outward Report Filters
+    private val _selectedCuisineId = MutableStateFlow<String?>(null)
+    val selectedCuisineId: StateFlow<String?> = _selectedCuisineId.asStateFlow()
+
+    private val _selectedCategoryName = MutableStateFlow<String?>(null)
+    val selectedCategoryName: StateFlow<String?> = _selectedCategoryName.asStateFlow()
+
+    private val _selectedUsageName = MutableStateFlow<String?>(null)
+    val selectedUsageName: StateFlow<String?> = _selectedUsageName.asStateFlow()
 
     // INWARD REPORT STATE
     private val _inwardReport = MutableStateFlow<InwardReport?>(null)
@@ -76,17 +98,12 @@ class ReportViewModel @Inject constructor(
     private val _outwardSummary = MutableStateFlow<OutwardSummary?>(null)
     val outwardSummary: StateFlow<OutwardSummary?> = _outwardSummary.asStateFlow()
 
-    // CUISINE-WISE REPORT STATE
-    private val _cuisineWiseReport = MutableStateFlow<CuisineWiseReport?>(null)
-    val cuisineWiseReport: StateFlow<CuisineWiseReport?> = _cuisineWiseReport.asStateFlow()
-
-    private val _selectedCuisineId = MutableStateFlow<String?>(null)
-    val selectedCuisineId: StateFlow<String?> = _selectedCuisineId.asStateFlow()
-
     init {
         // Load default report on initialization
         loadInwardReport()
         loadCuisines()
+        loadCategories()
+        loadUsages()
     }
 
     private fun loadCuisines() {
@@ -109,14 +126,69 @@ class ReportViewModel @Inject constructor(
         }
     }
 
+    private fun loadCategories() {
+        viewModelScope.launch {
+            try {
+                categoryRepository.getAllCategories().collect { result ->
+                    result.fold(
+                        onSuccess = { categoryList ->
+                            _categories.value = categoryList
+                            Log.d("ReportViewModel", "Successfully loaded ${categoryList.size} categories")
+                        },
+                        onFailure = { error ->
+                            Log.e("ReportViewModel", "Error loading categories: ${error.message}")
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("ReportViewModel", "Exception loading categories", e)
+            }
+        }
+    }
+
+    private fun loadUsages() {
+        viewModelScope.launch {
+            try {
+                usageRepository.getAllUsages().collect { result ->
+                    result.fold(
+                        onSuccess = { usageList ->
+                            _usages.value = usageList.filter { it.isActive }
+                            Log.d("ReportViewModel", "Successfully loaded ${usageList.size} usages")
+                        },
+                        onFailure = { error ->
+                            Log.e("ReportViewModel", "Error loading usages: ${error.message}")
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("ReportViewModel", "Exception loading usages", e)
+            }
+        }
+    }
+
     // REPORT TYPE MANAGEMENT
     fun setReportType(reportType: ReportType) {
         _currentReportType.value = reportType
         when (reportType) {
             ReportType.INWARD -> loadInwardReport()
             ReportType.OUTWARD -> loadOutwardReport()
-            ReportType.CUISINE_WISE -> loadCuisineWiseReport()
         }
+    }
+
+    // OUTWARD FILTER MANAGEMENT
+    fun setSelectedCuisineId(cuisineId: String?) {
+        _selectedCuisineId.value = cuisineId
+        loadOutwardReport()
+    }
+
+    fun setSelectedCategoryName(categoryName: String?) {
+        _selectedCategoryName.value = categoryName
+        loadOutwardReport()
+    }
+
+    fun setSelectedUsageName(usageName: String?) {
+        _selectedUsageName.value = usageName
+        loadOutwardReport()
     }
 
     // DATE MANAGEMENT
@@ -140,7 +212,6 @@ class ReportViewModel @Inject constructor(
         when (_currentReportType.value) {
             ReportType.INWARD -> loadInwardReport()
             ReportType.OUTWARD -> loadOutwardReport()
-            ReportType.CUISINE_WISE -> loadCuisineWiseReport()
         }
     }
 
@@ -203,7 +274,7 @@ class ReportViewModel @Inject constructor(
         }
     }
 
-    // OUTWARD REPORT METHODS
+    // OUTWARD REPORT METHODS WITH FILTERS
     fun loadOutwardReport() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -215,12 +286,17 @@ class ReportViewModel @Inject constructor(
             )
 
             try {
-                reportRepository.getOutwardReport(filter).collect { result ->
+                reportRepository.getOutwardReport(
+                    filter = filter,
+                    cuisineId = _selectedCuisineId.value,
+                    categoryName = _selectedCategoryName.value,
+                    purposeName = _selectedUsageName.value
+                ).collect { result ->
                     result.fold(
                         onSuccess = { report ->
                             _outwardReport.value = report
                             _isLoading.value = false
-                            Log.d("ReportViewModel", "Outward report loaded successfully: ${report.items.size} items")
+                            Log.d("ReportViewModel", "Outward report loaded successfully: ${report.items.size} items (filters: cuisine=${_selectedCuisineId.value}, category=${_selectedCategoryName.value}, purpose=${_selectedUsageName.value})")
                         },
                         onFailure = { error ->
                             _errorMessage.value = error.message ?: "Failed to load outward report"
@@ -258,45 +334,6 @@ class ReportViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 Log.e("ReportViewModel", "Exception loading outward summary", e)
-            }
-        }
-    }
-
-    // CUISINE-WISE REPORT METHODS
-    fun setSelectedCuisineId(cuisineId: String?) {
-        _selectedCuisineId.value = cuisineId
-        loadCuisineWiseReport()
-    }
-
-    fun loadCuisineWiseReport() {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _errorMessage.value = null
-
-            val filter = ReportFilter(
-                startDate = _startDate.value,
-                endDate = _endDate.value
-            )
-
-            try {
-                reportRepository.getCuisineWiseReport(filter, _selectedCuisineId.value).collect { result ->
-                    result.fold(
-                        onSuccess = { report ->
-                            _cuisineWiseReport.value = report
-                            _isLoading.value = false
-                            Log.d("ReportViewModel", "Cuisine-wise report loaded successfully: ${report.items.size} items, ${report.cuisineBreakdown.size} cuisines")
-                        },
-                        onFailure = { error ->
-                            _errorMessage.value = error.message ?: "Failed to load cuisine-wise report"
-                            _isLoading.value = false
-                            Log.e("ReportViewModel", "Error loading cuisine-wise report: ${error.message}")
-                        }
-                    )
-                }
-            } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Unexpected error occurred"
-                _isLoading.value = false
-                Log.e("ReportViewModel", "Exception loading cuisine-wise report", e)
             }
         }
     }

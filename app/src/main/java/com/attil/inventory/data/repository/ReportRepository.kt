@@ -81,22 +81,40 @@ class ReportRepository @Inject constructor(
         }
     }
 
-    // OUTWARD REPORT METHODS WITH COST CALCULATION
-    fun getOutwardReport(filter: ReportFilter): Flow<Result<OutwardReport>> = flow {
+    // OUTWARD REPORT METHODS WITH COST CALCULATION AND FILTERS
+    fun getOutwardReport(
+        filter: ReportFilter,
+        cuisineId: String? = null,
+        categoryName: String? = null,
+        purposeName: String? = null
+    ): Flow<Result<OutwardReport>> = flow {
         try {
-            Log.d("ReportRepo", "Fetching outward report with cost calculation")
+            Log.d("ReportRepo", "Fetching outward report with filters - cuisine: $cuisineId, category: $categoryName, purpose: $purposeName")
 
             val dateFilter = "gte.${filter.startDate}"
+            val cuisineFilter = if (cuisineId != null) "eq.$cuisineId" else null
 
             val response = reportApiService.getOutwardReportByDateRange(
                 dateRange = dateFilter,
-                select = "*,items(id,name,unit_of_measure,categories(name)),cuisines(name),users(full_name)",
+                cuisineId = cuisineFilter,
+                select = "*,items(id,name,unit_of_measure,categories(name)),cuisines(id,name),users(full_name)",
                 order = "usage_date.desc"
             )
 
             if (response.isSuccessful) {
                 val rawData = response.body() ?: emptyList()
-                val items = parseOutwardReportItemsWithCosts(rawData)
+                var items = parseOutwardReportItemsWithCosts(rawData)
+
+                // Client-side filtering for category and purpose
+                if (!categoryName.isNullOrBlank()) {
+                    items = items.filter { it.categoryName.equals(categoryName, ignoreCase = true) }
+                    Log.d("ReportRepo", "After category filter: ${items.size} items")
+                }
+
+                if (!purposeName.isNullOrBlank()) {
+                    items = items.filter { it.purpose.equals(purposeName, ignoreCase = true) }
+                    Log.d("ReportRepo", "After purpose filter: ${items.size} items")
+                }
 
                 val report = OutwardReport(
                     reportDate = getCurrentDateTime(),
