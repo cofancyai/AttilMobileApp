@@ -267,6 +267,33 @@ class IndentViewModel @Inject constructor(
         }
     }
 
+    fun removeSelectedItem(itemId: String) {
+        val currentItems = _uiState.value.availableItems.toMutableList()
+        val index = currentItems.indexOfFirst { it.item.id == itemId }
+
+        if (index != -1) {
+            // Unselect the item
+            val updatedItem = currentItems[index].copy(
+                isSelected = false,
+                requestedQuantity = 0.0
+            )
+            currentItems[index] = updatedItem
+
+            val selectedItems = currentItems.filter { it.isSelected }
+
+            _uiState.value = _uiState.value.copy(
+                availableItems = currentItems,
+                selectedItems = selectedItems,
+                totalSelectedItems = selectedItems.size
+            )
+
+            // Update filtered items if search is active
+            if (_uiState.value.searchQuery.isNotEmpty()) {
+                filterItems()
+            }
+        }
+    }
+
     // Search and filtering
     fun searchItems(query: String) {
         _uiState.value = _uiState.value.copy(searchQuery = query)
@@ -308,12 +335,18 @@ class IndentViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isCreating = true, error = null)
 
             try {
+                // Use first available cuisine as default if not selected
+                // In a real app, this would come from the chef's profile/assigned cuisine
+                val cuisineId = _uiState.value.selectedCuisine?.id
+                    ?: _uiState.value.cuisines.firstOrNull()?.id
+                    ?: ""
+
                 val indentRequest = CreateIndentRequest(
                     chefId = chefId,
-                    cuisineId = _uiState.value.selectedCuisine?.id ?: "",
+                    cuisineId = cuisineId,
                     requiredDate = _uiState.value.requiredDate,
-                    requiredTime = _uiState.value.requiredTime,
-                    priority = _uiState.value.priority,
+                    requiredTime = getCurrentTime(), // Auto-set to current time
+                    priority = "Medium", // Default priority
                     purpose = _uiState.value.purpose,
                     notes = _uiState.value.notes.ifEmpty { null },
                     indentItems = _uiState.value.selectedItems.map { item ->
@@ -333,6 +366,8 @@ class IndentViewModel @Inject constructor(
                                 createdIndent = createdIndent,
                                 error = null
                             )
+                            // Reset form for next creation
+                            resetForNewIndent()
                         },
                         onFailure = { error ->
                             _uiState.value = _uiState.value.copy(
@@ -349,6 +384,10 @@ class IndentViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private fun getCurrentTime(): String {
+        return java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
     }
 
     fun updateIndentStatus(indentId: String, status: String, userId: String) {
@@ -681,6 +720,8 @@ class IndentViewModel @Inject constructor(
 
     // Reset for new indent creation
     fun resetForNewIndent() {
+        val currentCreatedIndent = _uiState.value.createdIndent // Preserve for toast
+
         _uiState.value = _uiState.value.copy(
             currentStep = 1,
             requiredDate = "",
@@ -693,7 +734,7 @@ class IndentViewModel @Inject constructor(
             totalSelectedItems = 0,
             searchQuery = "",
             selectedCategoryFilter = "",
-            createdIndent = null,
+            createdIndent = currentCreatedIndent, // Keep for toast notification
             error = null,
             showVerificationDialog = false,
             verificationItems = emptyList(),
