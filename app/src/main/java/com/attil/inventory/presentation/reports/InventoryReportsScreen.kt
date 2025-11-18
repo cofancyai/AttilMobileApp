@@ -41,8 +41,19 @@ fun InventoryReportsScreen(
     val inwardReport by viewModel.inwardReport.collectAsState()
     val outwardReport by viewModel.outwardReport.collectAsState()
 
+    // Outward filter state
+    val cuisines by viewModel.cuisines.collectAsState()
+    val categories by viewModel.categories.collectAsState()
+    val usages by viewModel.usages.collectAsState()
+    val selectedCuisineId by viewModel.selectedCuisineId.collectAsState()
+    val selectedCategoryName by viewModel.selectedCategoryName.collectAsState()
+    val selectedUsageName by viewModel.selectedUsageName.collectAsState()
+
     var showDatePicker by remember { mutableStateOf(false) }
     var isDatePickerForStart by remember { mutableStateOf(true) }
+    var cuisineDropdownExpanded by remember { mutableStateOf(false) }
+    var categoryDropdownExpanded by remember { mutableStateOf(false) }
+    var usageDropdownExpanded by remember { mutableStateOf(false) }
 
     // Set report type when screen loads
     LaunchedEffect(reportType) {
@@ -156,6 +167,205 @@ fun InventoryReportsScreen(
                             contentDescription = "Refresh",
                             tint = Color.White
                         )
+                    }
+                }
+
+                // Outward Report Filters
+                if (reportType == ReportType.OUTWARD) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Filters",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1976D2)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Cuisine Filter
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { cuisineDropdownExpanded = !cuisineDropdownExpanded },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Default.Restaurant,
+                                contentDescription = "Cuisine",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (selectedCuisineId == null) {
+                                    "All Cuisines"
+                                } else {
+                                    cuisines.find { it.id == selectedCuisineId }?.name ?: "Select Cuisine"
+                                },
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Icon(
+                                if (cuisineDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                contentDescription = "Dropdown"
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = cuisineDropdownExpanded,
+                            onDismissRequest = { cuisineDropdownExpanded = false },
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .background(Color.White)
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "All Cuisines",
+                                        color = Color(0xFF333333)
+                                    )
+                                },
+                                onClick = {
+                                    viewModel.setSelectedCuisineId(null)
+                                    cuisineDropdownExpanded = false
+                                }
+                            )
+                            cuisines.forEach { cuisine ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            cuisine.name,
+                                            color = Color(0xFF333333)
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.setSelectedCuisineId(cuisine.id)
+                                        cuisineDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Category Filter
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { categoryDropdownExpanded = !categoryDropdownExpanded },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Default.Category,
+                                contentDescription = "Category",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = selectedCategoryName ?: "All Categories",
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Icon(
+                                if (categoryDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                contentDescription = "Dropdown"
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = categoryDropdownExpanded,
+                            onDismissRequest = { categoryDropdownExpanded = false },
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .background(Color.White)
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "All Categories",
+                                        color = Color(0xFF333333)
+                                    )
+                                },
+                                onClick = {
+                                    viewModel.setSelectedCategoryName(null)
+                                    categoryDropdownExpanded = false
+                                }
+                            )
+                            categories.forEach { category ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            category.name,
+                                            color = Color(0xFF333333)
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.setSelectedCategoryName(category.name)
+                                        categoryDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Usage/Purpose Filter
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { usageDropdownExpanded = !usageDropdownExpanded },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Default.Label,
+                                contentDescription = "Purpose",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = selectedUsageName ?: "All Purposes",
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Icon(
+                                if (usageDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                contentDescription = "Dropdown"
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = usageDropdownExpanded,
+                            onDismissRequest = { usageDropdownExpanded = false },
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .background(Color.White)
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "All Purposes",
+                                        color = Color(0xFF333333)
+                                    )
+                                },
+                                onClick = {
+                                    viewModel.setSelectedUsageName(null)
+                                    usageDropdownExpanded = false
+                                }
+                            )
+                            usages.forEach { usage ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            usage.name,
+                                            color = Color(0xFF333333)
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.setSelectedUsageName(usage.name)
+                                        usageDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
