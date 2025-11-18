@@ -521,10 +521,12 @@ fun UserDialog(
                                         Checkbox(
                                             checked = selectedCuisineIds.contains(cuisine.id),
                                             onCheckedChange = { isChecked ->
-                                                selectedCuisineIds = if (isChecked) {
-                                                    selectedCuisineIds + cuisine.id
-                                                } else {
-                                                    selectedCuisineIds - cuisine.id
+                                                cuisine.id?.let { id ->
+                                                    selectedCuisineIds = if (isChecked) {
+                                                        selectedCuisineIds + id
+                                                    } else {
+                                                        selectedCuisineIds - id
+                                                    }
                                                 }
                                             },
                                             colors = CheckboxDefaults.colors(
