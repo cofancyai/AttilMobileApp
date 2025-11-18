@@ -69,6 +69,13 @@ class ReportViewModel @Inject constructor(
     private val _outwardSummary = MutableStateFlow<OutwardSummary?>(null)
     val outwardSummary: StateFlow<OutwardSummary?> = _outwardSummary.asStateFlow()
 
+    // CUISINE-WISE REPORT STATE
+    private val _cuisineWiseReport = MutableStateFlow<CuisineWiseReport?>(null)
+    val cuisineWiseReport: StateFlow<CuisineWiseReport?> = _cuisineWiseReport.asStateFlow()
+
+    private val _selectedCuisineId = MutableStateFlow<String?>(null)
+    val selectedCuisineId: StateFlow<String?> = _selectedCuisineId.asStateFlow()
+
     init {
         // Load default report on initialization
         loadInwardReport()
@@ -80,6 +87,7 @@ class ReportViewModel @Inject constructor(
         when (reportType) {
             ReportType.INWARD -> loadInwardReport()
             ReportType.OUTWARD -> loadOutwardReport()
+            ReportType.CUISINE_WISE -> loadCuisineWiseReport()
         }
     }
 
@@ -104,6 +112,7 @@ class ReportViewModel @Inject constructor(
         when (_currentReportType.value) {
             ReportType.INWARD -> loadInwardReport()
             ReportType.OUTWARD -> loadOutwardReport()
+            ReportType.CUISINE_WISE -> loadCuisineWiseReport()
         }
     }
 
@@ -221,6 +230,45 @@ class ReportViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 Log.e("ReportViewModel", "Exception loading outward summary", e)
+            }
+        }
+    }
+
+    // CUISINE-WISE REPORT METHODS
+    fun setSelectedCuisineId(cuisineId: String?) {
+        _selectedCuisineId.value = cuisineId
+        loadCuisineWiseReport()
+    }
+
+    fun loadCuisineWiseReport() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+
+            val filter = ReportFilter(
+                startDate = _startDate.value,
+                endDate = _endDate.value
+            )
+
+            try {
+                reportRepository.getCuisineWiseReport(filter, _selectedCuisineId.value).collect { result ->
+                    result.fold(
+                        onSuccess = { report ->
+                            _cuisineWiseReport.value = report
+                            _isLoading.value = false
+                            Log.d("ReportViewModel", "Cuisine-wise report loaded successfully: ${report.items.size} items, ${report.cuisineBreakdown.size} cuisines")
+                        },
+                        onFailure = { error ->
+                            _errorMessage.value = error.message ?: "Failed to load cuisine-wise report"
+                            _isLoading.value = false
+                            Log.e("ReportViewModel", "Error loading cuisine-wise report: ${error.message}")
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "Unexpected error occurred"
+                _isLoading.value = false
+                Log.e("ReportViewModel", "Exception loading cuisine-wise report", e)
             }
         }
     }
