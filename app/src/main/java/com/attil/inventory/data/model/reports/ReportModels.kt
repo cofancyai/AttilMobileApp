@@ -95,6 +95,8 @@ data class OutwardReportItem(
     val notes: String?,
     @SerializedName("created_by")
     val createdBy: String?,
+    @SerializedName("chef_name")
+    val chefName: String? = null,
     // NEW: Calculated cost fields
     val calculatedCostPerUnit: Double = 0.0,
     val calculatedTotalCost: Double = 0.0,

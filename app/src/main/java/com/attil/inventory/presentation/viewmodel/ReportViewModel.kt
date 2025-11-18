@@ -759,19 +759,19 @@ class ReportViewModel @Inject constructor(
                 val rowHeight = 18f
                 val headerHeight = 22f
 
-                // Optimized column definitions with cost information
+                // Optimized column definitions with cost information and user
                 val totalTableWidth = availableWidth - 10f
                 val columns = arrayOf(
                     Pair("No", 30f),
-                    Pair("Item Name", 110f),
-                    Pair("Category", 65f),
-                    Pair("Cuisine", 65f),
-                    Pair("Date", 60f),
+                    Pair("Item Name", 100f),
+                    Pair("Category", 60f),
+                    Pair("Cuisine", 60f),
+                    Pair("Date & Time", 70f),
                     Pair("Qty", 35f),
                     Pair("Unit", 40f),
-                    Pair("Cost/Unit", 50f),
-                    Pair("Total Cost", 60f),
-                    Pair("Method", 65f)
+                    Pair("Total Cost", 55f),
+                    Pair("Method", 60f),
+                    Pair("User", 70f)
                 )
 
                 // Auto-adjust column widths to fit available space
@@ -823,7 +823,7 @@ class ReportViewModel @Inject constructor(
                         return@forEachIndexed
                     }
 
-                    // Row data with calculated costs
+                    // Row data with calculated costs and user name
                     val rowData = arrayOf(
                         (index + 1).toString(),
                         autoFitText(paint, item.itemName, adjustedColumns[1].second - 8f),
@@ -832,9 +832,9 @@ class ReportViewModel @Inject constructor(
                         autoFitText(paint, item.usageDate, adjustedColumns[4].second - 8f),
                         String.format("%.1f", item.outwardQuantity),
                         autoFitText(paint, item.unitOfMeasure, adjustedColumns[6].second - 8f),
-                        String.format("%.2f", item.calculatedCostPerUnit),
                         String.format("%.2f", item.calculatedTotalCost),
-                        autoFitText(paint, item.costCalculationMethod, adjustedColumns[9].second - 8f)
+                        autoFitText(paint, item.costCalculationMethod, adjustedColumns[8].second - 8f),
+                        autoFitText(paint, item.chefName ?: "N/A", adjustedColumns[9].second - 8f)
                     )
 
                     // Alternate row background
@@ -935,11 +935,11 @@ class ReportViewModel @Inject constructor(
             try {
                 val csvContent = buildString {
                     // Headers
-                    appendLine("S.No,Item Name,Category,Cuisine,Usage Date,Quantity,Unit,Calculated Cost Per Unit,Total Calculated Cost,Cost Calculation Method,Purpose,Source Type,Notes,Created By")
+                    appendLine("S.No,Item Name,Category,Cuisine,Date & Time,Quantity,Unit,Total Cost,Cost Calculation Method,User (Chef Name)")
 
                     // Data rows
                     report.items.forEachIndexed { index, item ->
-                        appendLine("${index + 1},\"${item.itemName}\",\"${item.categoryName ?: ""}\",\"${item.cuisineName ?: ""}\",\"${item.usageDate}\",${item.outwardQuantity},\"${item.unitOfMeasure}\",${item.calculatedCostPerUnit},${item.calculatedTotalCost},\"${item.costCalculationMethod}\",\"${item.purpose ?: ""}\",\"${item.sourceType ?: ""}\",\"${item.notes ?: ""}\",\"${item.createdBy ?: ""}\"")
+                        appendLine("${index + 1},\"${item.itemName}\",\"${item.categoryName ?: ""}\",\"${item.cuisineName ?: ""}\",\"${item.usageDate}\",${item.outwardQuantity},\"${item.unitOfMeasure}\",${item.calculatedTotalCost},\"${item.costCalculationMethod}\",\"${item.chefName ?: "N/A"}\"")
                     }
 
                     // Comprehensive Summary

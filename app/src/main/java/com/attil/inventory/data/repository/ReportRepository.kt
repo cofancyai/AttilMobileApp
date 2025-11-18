@@ -90,7 +90,7 @@ class ReportRepository @Inject constructor(
 
             val response = reportApiService.getOutwardReportByDateRange(
                 dateRange = dateFilter,
-                select = "*,items(id,name,unit_of_measure,categories(name)),cuisines(name)",
+                select = "*,items(id,name,unit_of_measure,categories(name)),cuisines(name),users(full_name)",
                 order = "usage_date.desc"
             )
 
@@ -183,6 +183,7 @@ class ReportRepository @Inject constructor(
                 val items = data["items"] as? Map<String, Any>
                 val categories = (items?.get("categories") as? Map<String, Any>)
                 val cuisines = data["cuisines"] as? Map<String, Any>
+                val users = data["users"] as? Map<String, Any>
                 val itemId = items?.get("id")?.toString() ?: ""
                 val usageDate = data["usage_date"]?.toString() ?: ""
                 val outwardQuantity = (data["outward_quantity"] as? Number)?.toDouble() ?: 0.0
@@ -205,6 +206,7 @@ class ReportRepository @Inject constructor(
                     indentId = data["indent_id"]?.toString(),
                     notes = data["notes"]?.toString(),
                     createdBy = data["created_by"]?.toString(),
+                    chefName = users?.get("full_name")?.toString(),
                     calculatedCostPerUnit = costData.first,
                     calculatedTotalCost = costData.first * outwardQuantity,
                     costCalculationMethod = costData.second
