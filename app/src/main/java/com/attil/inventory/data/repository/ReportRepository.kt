@@ -89,10 +89,20 @@ class ReportRepository @Inject constructor(
         purposeName: String? = null
     ): Flow<Result<OutwardReport>> = flow {
         try {
-            Log.d("ReportRepo", "Fetching outward report with filters - cuisine: $cuisineId, category: $categoryName, purpose: $purposeName")
+            Log.d("ReportRepo", "=== getOutwardReport START ===")
+            Log.d("ReportRepo", "Filter start date: ${filter.startDate}")
+            Log.d("ReportRepo", "Filter end date: ${filter.endDate}")
+            Log.d("ReportRepo", "Cuisine filter: $cuisineId")
+            Log.d("ReportRepo", "Category filter: $categoryName")
+            Log.d("ReportRepo", "Purpose filter: $purposeName")
 
             val dateFilter = "gte.${filter.startDate}"
             val cuisineFilter = if (cuisineId != null) "eq.$cuisineId" else null
+
+            Log.d("ReportRepo", "API Query params:")
+            Log.d("ReportRepo", "  dateRange: $dateFilter")
+            Log.d("ReportRepo", "  cuisineId: $cuisineFilter")
+            Log.d("ReportRepo", "  select: *,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name),indents!indent_id(chef_id,users!chef_id(full_name))")
 
             val response = reportApiService.getOutwardReportByDateRange(
                 dateRange = dateFilter,
@@ -101,19 +111,34 @@ class ReportRepository @Inject constructor(
                 order = "usage_date.desc"
             )
 
+            Log.d("ReportRepo", "API Response code: ${response.code()}")
+            Log.d("ReportRepo", "API Response successful: ${response.isSuccessful}")
+
             if (response.isSuccessful) {
                 val rawData = response.body() ?: emptyList()
+                Log.d("ReportRepo", "Raw data received: ${rawData.size} items")
+
+                if (rawData.isEmpty()) {
+                    Log.w("ReportRepo", "⚠️ No data returned from API")
+                } else {
+                    Log.d("ReportRepo", "First item sample: ${rawData.firstOrNull()}")
+                }
+
+                Log.d("ReportRepo", "Starting to parse outward report items...")
                 var items = parseOutwardReportItemsWithCosts(rawData)
+                Log.d("ReportRepo", "After parsing: ${items.size} items")
 
                 // Client-side filtering for category and purpose
                 if (!categoryName.isNullOrBlank()) {
+                    val beforeFilter = items.size
                     items = items.filter { it.categoryName.equals(categoryName, ignoreCase = true) }
-                    Log.d("ReportRepo", "After category filter: ${items.size} items")
+                    Log.d("ReportRepo", "Category filter applied: $beforeFilter -> ${items.size} items")
                 }
 
                 if (!purposeName.isNullOrBlank()) {
+                    val beforeFilter = items.size
                     items = items.filter { it.purpose.equals(purposeName, ignoreCase = true) }
-                    Log.d("ReportRepo", "After purpose filter: ${items.size} items")
+                    Log.d("ReportRepo", "Purpose filter applied: $beforeFilter -> ${items.size} items")
                 }
 
                 val report = OutwardReport(
@@ -125,15 +150,21 @@ class ReportRepository @Inject constructor(
                     items = items
                 )
 
-                Log.d("ReportRepo", "Successfully fetched outward report with costs: ${items.size} items")
+                Log.d("ReportRepo", "✅ Successfully created outward report: ${items.size} items, total value: ${report.totalValue}")
                 emit(Result.success(report))
             } else {
                 val errorBody = response.errorBody()?.string()
-                Log.e("ReportRepo", "Error fetching outward report: $errorBody")
+                Log.e("ReportRepo", "❌ API Error Response:")
+                Log.e("ReportRepo", "  Status code: ${response.code()}")
+                Log.e("ReportRepo", "  Error body: $errorBody")
+                Log.e("ReportRepo", "  Headers: ${response.headers()}")
                 emit(Result.failure(Exception("Failed to fetch outward report: ${response.code()} - $errorBody")))
             }
         } catch (e: Exception) {
-            Log.e("ReportRepo", "Exception fetching outward report", e)
+            Log.e("ReportRepo", "❌ Exception in getOutwardReport:")
+            Log.e("ReportRepo", "  Message: ${e.message}")
+            Log.e("ReportRepo", "  Type: ${e.javaClass.simpleName}")
+            Log.e("ReportRepo", "  Stack trace:", e)
             emit(Result.failure(e))
         }
     }
@@ -290,21 +321,47 @@ class ReportRepository @Inject constructor(
     }
 
     private suspend fun parseOutwardReportItemsWithCosts(rawData: List<Map<String, Any>>): List<OutwardReportItem> {
-        return rawData.mapNotNull { data ->
+        Log.d("ReportRepo", "=== parseOutwardReportItemsWithCosts START ===")
+        Log.d("ReportRepo", "Processing ${rawData.size} raw items")
+
+        var successCount = 0
+        var errorCount = 0
+
+        val result = rawData.mapNotNull { data ->
             try {
+                Log.d("ReportRepo", "Parsing item data: ${data.keys}")
+
                 val items = data["items"] as? Map<String, Any>
+                if (items == null) {
+                    Log.w("ReportRepo", "⚠️ Missing 'items' field in data: $data")
+                }
+
                 val categories = (items?.get("categories") as? Map<String, Any>)
                 val cuisines = data["cuisines"] as? Map<String, Any>
+                if (cuisines == null) {
+                    Log.w("ReportRepo", "⚠️ Missing 'cuisines' field")
+                }
+
                 val indents = data["indents"] as? Map<String, Any>
+                if (indents == null) {
+                    Log.w("ReportRepo", "⚠️ Missing 'indents' field")
+                }
+
                 val users = indents?.get("users") as? Map<String, Any>
+                if (users == null && indents != null) {
+                    Log.w("ReportRepo", "⚠️ Missing 'users' field in indents")
+                }
+
                 val itemId = items?.get("id")?.toString() ?: ""
                 val usageDate = data["usage_date"]?.toString() ?: ""
                 val outwardQuantity = (data["outward_quantity"] as? Number)?.toDouble() ?: 0.0
 
+                Log.d("ReportRepo", "Item ID: $itemId, Usage Date: $usageDate, Quantity: $outwardQuantity")
+
                 // Calculate moving average cost
                 val costData = calculateMovingAverageCost(itemId, usageDate)
 
-                OutwardReportItem(
+                val item = OutwardReportItem(
                     id = data["id"]?.toString() ?: "",
                     itemId = itemId,
                     itemName = items?.get("name")?.toString() ?: "Unknown Item",
@@ -324,11 +381,24 @@ class ReportRepository @Inject constructor(
                     calculatedTotalCost = costData.first * outwardQuantity,
                     costCalculationMethod = costData.second
                 )
+
+                successCount++
+                item
             } catch (e: Exception) {
-                Log.e("ReportRepo", "Error parsing outward item: ${e.message}")
+                errorCount++
+                Log.e("ReportRepo", "❌ Error parsing outward item:")
+                Log.e("ReportRepo", "  Message: ${e.message}")
+                Log.e("ReportRepo", "  Data: $data")
+                Log.e("ReportRepo", "  Stack trace:", e)
                 null
             }
         }
+
+        Log.d("ReportRepo", "=== parseOutwardReportItemsWithCosts END ===")
+        Log.d("ReportRepo", "Successfully parsed: $successCount items")
+        Log.d("ReportRepo", "Failed to parse: $errorCount items")
+
+        return result
     }
 
     private suspend fun calculateMovingAverageCost(itemId: String, usageDate: String): Pair<Double, String> {

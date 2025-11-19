@@ -320,6 +320,13 @@ class ReportViewModel @Inject constructor(
     // OUTWARD REPORT METHODS WITH FILTERS
     fun loadOutwardReport() {
         viewModelScope.launch {
+            Log.d("ReportViewModel", "=== Starting loadOutwardReport ===")
+            Log.d("ReportViewModel", "Start Date: ${_startDate.value}")
+            Log.d("ReportViewModel", "End Date: ${_endDate.value}")
+            Log.d("ReportViewModel", "Cuisine Filter: ${_selectedCuisineId.value}")
+            Log.d("ReportViewModel", "Category Filter: ${_selectedCategoryName.value}")
+            Log.d("ReportViewModel", "Purpose Filter: ${_selectedUsageName.value}")
+
             _isLoading.value = true
             _errorMessage.value = null
 
@@ -339,19 +346,21 @@ class ReportViewModel @Inject constructor(
                         onSuccess = { report ->
                             _outwardReport.value = report
                             _isLoading.value = false
-                            Log.d("ReportViewModel", "Outward report loaded successfully: ${report.items.size} items (filters: cuisine=${_selectedCuisineId.value}, category=${_selectedCategoryName.value}, purpose=${_selectedUsageName.value})")
+                            Log.d("ReportViewModel", "✅ Outward report loaded successfully: ${report.items.size} items (filters: cuisine=${_selectedCuisineId.value}, category=${_selectedCategoryName.value}, purpose=${_selectedUsageName.value})")
                         },
                         onFailure = { error ->
                             _errorMessage.value = error.message ?: "Failed to load outward report"
                             _isLoading.value = false
-                            Log.e("ReportViewModel", "Error loading outward report: ${error.message}")
+                            Log.e("ReportViewModel", "❌ Error loading outward report: ${error.message}")
+                            Log.e("ReportViewModel", "Error stack trace:", error)
                         }
                     )
                 }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Unexpected error occurred"
                 _isLoading.value = false
-                Log.e("ReportViewModel", "Exception loading outward report", e)
+                Log.e("ReportViewModel", "❌ Exception loading outward report: ${e.message}")
+                Log.e("ReportViewModel", "Exception stack trace:", e)
             }
         }
     }
