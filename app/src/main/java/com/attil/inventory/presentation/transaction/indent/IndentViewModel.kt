@@ -54,6 +54,7 @@ data class IndentUiState(
     val totalSelectedItems: Int = 0,
     val showVerificationDialog: Boolean = false,
     val verificationItems: List<VerificationItem> = emptyList(),
+    val currentIndentForVerification: Indent? = null,
     val isVerifying: Boolean = false,
     val verificationError: String? = null
 )
@@ -495,6 +496,7 @@ class IndentViewModel @Inject constructor(
     fun showVerificationDialog(indent: Indent) {
         println("DEBUG - showVerificationDialog called")
         println("DEBUG - indent.indentItems size: ${indent.indentItems?.size}")
+        println("DEBUG - indent chefId: ${indent.chefId}, cuisineId: ${indent.cuisineId}")
 
         val verificationItems = indent.indentItems?.map { item ->
             println("DEBUG - Item: ${item.items?.name}, fulfilled: ${item.fulfilledQuantity}")
@@ -510,7 +512,8 @@ class IndentViewModel @Inject constructor(
 
         _uiState.value = _uiState.value.copy(
             showVerificationDialog = true,
-            verificationItems = verificationItems
+            verificationItems = verificationItems,
+            currentIndentForVerification = indent
         )
     }
 
@@ -518,6 +521,7 @@ class IndentViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             showVerificationDialog = false,
             verificationItems = emptyList(),
+            currentIndentForVerification = null,
             verificationError = null
         )
     }
@@ -559,13 +563,16 @@ class IndentViewModel @Inject constructor(
                         onSuccess = {
                             // Create outward transactions for verified items to update stock
                             // This is where stock is actually updated - only after chef verification
+                            val currentIndent = _uiState.value.currentIndentForVerification
                             receivedItems.forEach { verificationItem ->
                                 val indentItem = verificationItem.indentItem
                                 indentItem.fulfilledQuantity?.let { fulfilledQty ->
                                     createOutwardTransactionForVerification(
                                         itemId = indentItem.itemId,
                                         quantity = fulfilledQty,
-                                        indentId = indentId
+                                        indentId = indentId,
+                                        chefId = currentIndent?.chefId,
+                                        cuisineId = currentIndent?.cuisineId
                                     )
                                 }
                             }
@@ -588,7 +595,8 @@ class IndentViewModel @Inject constructor(
                                         _uiState.value = _uiState.value.copy(
                                             isVerifying = false,
                                             showVerificationDialog = false,
-                                            verificationItems = emptyList()
+                                            verificationItems = emptyList(),
+                                            currentIndentForVerification = null
                                         )
                                         // Reload indents to show updated status
                                         loadIndents()
@@ -725,7 +733,9 @@ class IndentViewModel @Inject constructor(
     private suspend fun createOutwardTransactionForVerification(
         itemId: String,
         quantity: Double,
-        indentId: String
+        indentId: String,
+        chefId: String?,
+        cuisineId: String?
     ) {
         try {
             val outwardRequest = CreateOutwardItemRequest(
@@ -735,8 +745,8 @@ class IndentViewModel @Inject constructor(
                 cuisineType = null,
                 usageDate = getCurrentDate(),
                 notes = "Verified and received from indent: $indentId",
-                createdBy = null,
-                cuisineId = null,
+                createdBy = chefId, // Set chef ID from indent
+                cuisineId = cuisineId, // Set cuisine ID from indent
                 indentId = indentId,
                 sourceType = "indent"
             )
