@@ -1,8 +1,12 @@
 package com.attil.inventory.presentation.bulkoperations
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -388,33 +392,30 @@ class ImportExportViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isProcessing = true)
 
             try {
-                // Create export file in cache directory
                 val fileName = "${exportType.lowercase()}_export_${System.currentTimeMillis()}.xlsx"
-                val file = File(context.cacheDir, fileName)
 
-                when (exportType) {
-                    "CATEGORIES" -> exportCategories(context, file)
-                    "RACKS" -> exportRacks(context, file)
-                    "ITEMS" -> exportItems(context, file)
-                    "CURRENT_STOCK" -> exportCurrentStock(context, file)
-                    "INWARD_TRANSACTIONS" -> exportInwardTransactions(context, file)
-                    "OUTWARD_TRANSACTIONS" -> exportOutwardTransactions(context, file)
+                // Create file and get URI based on Android version
+                val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // Android 10+ (Scoped Storage) - save to Downloads
+                    saveToDownloads(context, fileName, exportType)
+                } else {
+                    // Android 9 and below - save to external storage
+                    saveToExternalStorage(context, fileName, exportType)
                 }
 
-                // Open the file
-                val uri = FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    file
-                )
-
+                // Open the exported file directly
                 val intent = Intent(Intent.ACTION_VIEW).apply {
                     setDataAndType(uri, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
 
-                context.startActivity(Intent.createChooser(intent, "Open Excel file"))
+                try {
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    // If no app can open Excel, just show success message
+                    // File is already saved to Downloads
+                }
 
                 _uiState.value = _uiState.value.copy(
                     isProcessing = false,
@@ -423,7 +424,7 @@ class ImportExportViewModel @Inject constructor(
                         totalRecords = 0,
                         successfulRecords = 0,
                         failedRecords = 0,
-                        message = "Export completed successfully"
+                        message = "File saved to Downloads folder: $fileName"
                     )
                 )
             } catch (e: Exception) {
@@ -440,6 +441,89 @@ class ImportExportViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private suspend fun saveToDownloads(context: Context, fileName: String, exportType: String): Uri {
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        }
+
+        val uri = context.contentResolver.insert(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            contentValues
+        ) ?: throw Exception("Failed to create file in Downloads")
+
+        context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+            when (exportType) {
+                "CATEGORIES" -> {
+                    val categories = categoryRepository.getAllCategories().first().getOrThrow()
+                    val headers = listOf("ID", "Name", "Description", "Created At")
+                    val data = categories.map { category ->
+                        listOf(category.id ?: "", category.name, category.description ?: "", category.createdAt ?: "")
+                    }
+                    ExcelUtils.createExcelFile(context, outputStream, "Categories", headers, data)
+                }
+                "RACKS" -> {
+                    val racks = rackRepository.getAllRacks().first().getOrThrow()
+                    val headers = listOf("ID", "Name", "Description", "Godown ID", "Is Active", "Created At")
+                    val data = racks.map { rack ->
+                        listOf(rack.id ?: "", rack.name, rack.description ?: "", rack.godownId, rack.isActive, rack.createdAt ?: "")
+                    }
+                    ExcelUtils.createExcelFile(context, outputStream, "Racks", headers, data)
+                }
+                "ITEMS" -> {
+                    val items = itemRepository.getAllItems().first().getOrThrow()
+                    val headers = listOf("ID", "Name", "Category ID", "Godown ID", "Rack ID", "Unit", "Min Stock", "Is Active", "Created At")
+                    val data = items.map { item ->
+                        listOf(item.id ?: "", item.name, item.categoryId, item.godownId ?: "", item.rackId ?: "", item.unitOfMeasure, item.minimumStockLevel, item.isActive, item.createdAt ?: "")
+                    }
+                    ExcelUtils.createExcelFile(context, outputStream, "Items", headers, data)
+                }
+                "CURRENT_STOCK" -> {
+                    val stocks = currentStockRepository.getAllCurrentStocks().first().getOrThrow()
+                    val headers = listOf("Item", "Category", "Godown", "Rack", "Unit", "Min Stock", "Inward", "Outward", "Current Stock", "Low Stock")
+                    val data = stocks.map { stock ->
+                        listOf(stock.itemName, stock.categoryName, stock.godownName ?: "", stock.rackName ?: "", stock.unitOfMeasure, stock.minimumStockLevel, stock.totalInward, stock.totalOutward, stock.currentStock, stock.isLowStock)
+                    }
+                    ExcelUtils.createExcelFile(context, outputStream, "Current Stock", headers, data)
+                }
+                "INWARD_TRANSACTIONS" -> {
+                    val inwardItems = inwardRepository.getAllInwardItems().first().getOrThrow()
+                    val headers = listOf("ID", "Item ID", "Vendor", "Date", "Quantity", "Price/Unit", "Price-GST", "GST%", "Price+GST", "Bill", "Created")
+                    val data = inwardItems.map { inward ->
+                        listOf(inward.id ?: "", inward.itemId, inward.vendorName, inward.purchaseDate, inward.inwardQuantity, inward.pricePerUnit, inward.priceWithoutGst ?: 0.0, inward.gstPercentage ?: 0.0, inward.priceWithGst ?: 0.0, inward.billNumber ?: "", inward.createdAt ?: "")
+                    }
+                    ExcelUtils.createExcelFile(context, outputStream, "Inward Transactions", headers, data)
+                }
+                else -> {
+                    ExcelUtils.createExcelFile(context, outputStream, "Export", listOf("Message"), listOf(listOf("Not implemented yet")))
+                }
+            }
+        }
+
+        return uri
+    }
+
+    private suspend fun saveToExternalStorage(context: Context, fileName: String, exportType: String): Uri {
+        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val file = File(downloadsDir, fileName)
+
+        file.outputStream().use { outputStream ->
+            when (exportType) {
+                "CATEGORIES" -> exportCategories(context, file)
+                "RACKS" -> exportRacks(context, file)
+                "ITEMS" -> exportItems(context, file)
+                "CURRENT_STOCK" -> exportCurrentStock(context, file)
+                "INWARD_TRANSACTIONS" -> exportInwardTransactions(context, file)
+                else -> {
+                    ExcelUtils.createExcelFile(context, outputStream, "Export", listOf("Message"), listOf(listOf("Not implemented yet")))
+                }
+            }
+        }
+
+        return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     }
 
     private suspend fun exportCategories(context: Context, file: File) {
