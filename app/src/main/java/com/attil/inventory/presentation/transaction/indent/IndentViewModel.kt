@@ -56,7 +56,8 @@ data class IndentUiState(
     val verificationItems: List<VerificationItem> = emptyList(),
     val currentIndentForVerification: Indent? = null,
     val isVerifying: Boolean = false,
-    val verificationError: String? = null
+    val verificationError: String? = null,
+    val verificationCompleted: Boolean = false
 )
 
 data class FulfillmentItem(
@@ -522,7 +523,8 @@ class IndentViewModel @Inject constructor(
             showVerificationDialog = false,
             verificationItems = emptyList(),
             currentIndentForVerification = null,
-            verificationError = null
+            verificationError = null,
+            verificationCompleted = false
         )
     }
 
@@ -596,7 +598,8 @@ class IndentViewModel @Inject constructor(
                                             isVerifying = false,
                                             showVerificationDialog = false,
                                             verificationItems = emptyList(),
-                                            currentIndentForVerification = null
+                                            currentIndentForVerification = null,
+                                            verificationCompleted = true
                                         )
                                         // Reload indents to show updated status
                                         loadIndents()

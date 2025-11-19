@@ -284,6 +284,14 @@ fun IndentManagementScreen(
         }
     }
 
+    // Close both dialogs when verification is completed
+    LaunchedEffect(uiState.verificationCompleted) {
+        if (uiState.verificationCompleted) {
+            showIndentDetails = null
+            viewModel.hideVerificationDialog() // Reset the flag
+        }
+    }
+
     // Indent Details Dialog
     showIndentDetails?.let { indent ->
         IndentDetailsDialog(
