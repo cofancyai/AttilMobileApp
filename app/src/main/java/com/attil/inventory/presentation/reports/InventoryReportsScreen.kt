@@ -380,6 +380,7 @@ fun InventoryReportsScreen(
                             ReportType.OUTWARD -> outwardReport?.let {
                                 viewModel.exportOutwardReportToPdf(context, it)
                             }
+                            ReportType.INDENT -> {} // Not applicable for this screen
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -406,6 +407,7 @@ fun InventoryReportsScreen(
                             ReportType.OUTWARD -> outwardReport?.let {
                                 viewModel.exportOutwardReportToCsv(context, it)
                             }
+                            ReportType.INDENT -> {} // Not applicable for this screen
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -509,6 +511,9 @@ fun InventoryReportsScreen(
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
+                    }
+                    ReportType.INDENT -> {
+                        // Not applicable for this screen - use IndentReportsScreen instead
                     }
                 }
             }
