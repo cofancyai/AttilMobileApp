@@ -15,12 +15,20 @@ import com.attil.inventory.data.model.bulk.ImportResult
 import com.attil.inventory.data.model.management.CreateCategoryRequest
 import com.attil.inventory.data.model.management.CreateRackRequest
 import com.attil.inventory.data.model.management.CreateItemRequest
+import com.attil.inventory.data.model.management.CreateGodownRequest
+import com.attil.inventory.data.model.management.CreateCuisineRequest
+import com.attil.inventory.data.model.management.CreateVendorRequest
+import com.attil.inventory.data.model.management.CreateUsageRequest
 import com.attil.inventory.data.model.transaction.CreateInwardItemRequest
 import com.attil.inventory.data.repository.CategoryRepository
 import com.attil.inventory.data.repository.ItemRepository
 import com.attil.inventory.data.repository.RackRepository
 import com.attil.inventory.data.repository.InwardRepository
 import com.attil.inventory.data.repository.CurrentStockRepository
+import com.attil.inventory.data.repository.GodownRepository
+import com.attil.inventory.data.repository.CuisineRepository
+import com.attil.inventory.data.repository.VendorRepository
+import com.attil.inventory.data.repository.UsageRepository
 import com.attil.inventory.utils.ExcelUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,7 +47,11 @@ data class ImportExportUiState(
 
 @HiltViewModel
 class ImportExportViewModel @Inject constructor(
+    private val godownRepository: GodownRepository,
     private val categoryRepository: CategoryRepository,
+    private val cuisineRepository: CuisineRepository,
+    private val vendorRepository: VendorRepository,
+    private val usageRepository: UsageRepository,
     private val rackRepository: RackRepository,
     private val itemRepository: ItemRepository,
     private val inwardRepository: InwardRepository,

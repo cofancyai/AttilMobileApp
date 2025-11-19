@@ -8,6 +8,7 @@ data class ImportResult(
     val totalRecords: Int,
     val successfulRecords: Int,
     val failedRecords: Int,
+    val skippedDuplicates: Int = 0,
     val errors: List<String> = emptyList(),
     val message: String
 )
@@ -91,9 +92,57 @@ data class InwardImportRow(
     val createdBy: String? = null
 )
 
+// Bulk Import Requests for Godowns
+data class BulkGodownsImport(
+    val godowns: List<GodownImportRow>
+)
+
+data class GodownImportRow(
+    val name: String,
+    val description: String? = null,
+    val location: String? = null
+)
+
+// Bulk Import Requests for Cuisines
+data class BulkCuisinesImport(
+    val cuisines: List<CuisineImportRow>
+)
+
+data class CuisineImportRow(
+    val name: String,
+    val description: String? = null
+)
+
+// Bulk Import Requests for Vendors
+data class BulkVendorsImport(
+    val vendors: List<VendorImportRow>
+)
+
+data class VendorImportRow(
+    val name: String,
+    val address: String? = null,
+    @SerializedName("contact_number")
+    val contactNumber: String? = null,
+    val email: String? = null
+)
+
+// Bulk Import Requests for Usage
+data class BulkUsageImport(
+    val usages: List<UsageImportRow>
+)
+
+data class UsageImportRow(
+    val name: String,
+    val description: String? = null
+)
+
 // Export data models
 enum class ExportType {
+    GODOWNS,
     CATEGORIES,
+    CUISINES,
+    VENDORS,
+    USAGE,
     RACKS,
     ITEMS,
     CURRENT_STOCK,
@@ -111,8 +160,13 @@ data class ExportRequest(
 
 // Import template types
 enum class ImportTemplateType {
+    GODOWNS,
     CATEGORIES,
+    CUISINES,
+    VENDORS,
+    USAGE,
     RACKS,
     ITEMS,
-    INITIAL_STOCK
+    INITIAL_STOCK,
+    INWARD_TRANSACTIONS
 }
