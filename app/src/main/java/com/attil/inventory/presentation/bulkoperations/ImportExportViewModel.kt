@@ -157,8 +157,21 @@ class ImportExportViewModel @Inject constructor(
         val errors = mutableListOf<String>()
         var successCount = 0
 
-        // Fetch all godowns and create name-to-ID mapping
-        val godowns = rackRepository.getAllRacks().mapNotNull { it.godowns }.distinctBy { it.id }
+        // Fetch all racks with godowns and create name-to-ID mapping
+        val racksResult = rackRepository.getAllRacks().first()
+        if (racksResult.isFailure) {
+            return ImportResult(
+                success = false,
+                totalRecords = excelData.size,
+                successfulRecords = 0,
+                failedRecords = excelData.size,
+                errors = listOf("Failed to fetch existing racks: ${racksResult.exceptionOrNull()?.message}"),
+                message = "Import failed - could not fetch existing data"
+            )
+        }
+
+        val racks = racksResult.getOrNull() ?: emptyList()
+        val godowns = racks.mapNotNull { it.godowns }.distinctBy { it.id }
         val godownMap = godowns.associate { it.name.trim().lowercase() to (it.id ?: "") }
 
         excelData.forEachIndexed { index, row ->
@@ -200,10 +213,34 @@ class ImportExportViewModel @Inject constructor(
         var successCount = 0
 
         // Fetch all categories, racks, godowns and create name-to-ID mappings
-        val categories = categoryRepository.getAllCategories()
+        val categoriesResult = categoryRepository.getAllCategories().first()
+        if (categoriesResult.isFailure) {
+            return ImportResult(
+                success = false,
+                totalRecords = excelData.size,
+                successfulRecords = 0,
+                failedRecords = excelData.size,
+                errors = listOf("Failed to fetch categories: ${categoriesResult.exceptionOrNull()?.message}"),
+                message = "Import failed - could not fetch existing data"
+            )
+        }
+
+        val categories = categoriesResult.getOrNull() ?: emptyList()
         val categoryMap = categories.associate { it.name.trim().lowercase() to (it.id ?: "") }
 
-        val racks = rackRepository.getAllRacks()
+        val racksResult = rackRepository.getAllRacks().first()
+        if (racksResult.isFailure) {
+            return ImportResult(
+                success = false,
+                totalRecords = excelData.size,
+                successfulRecords = 0,
+                failedRecords = excelData.size,
+                errors = listOf("Failed to fetch racks: ${racksResult.exceptionOrNull()?.message}"),
+                message = "Import failed - could not fetch existing data"
+            )
+        }
+
+        val racks = racksResult.getOrNull() ?: emptyList()
         val rackMap = racks.associate { it.name.trim().lowercase() to (it.id ?: "") }
 
         val godowns = racks.mapNotNull { it.godowns }.distinctBy { it.id }
@@ -275,7 +312,19 @@ class ImportExportViewModel @Inject constructor(
         var successCount = 0
 
         // Fetch all items and create name-to-ID mapping
-        val items = itemRepository.getAllItems()
+        val itemsResult = itemRepository.getAllItems().first()
+        if (itemsResult.isFailure) {
+            return ImportResult(
+                success = false,
+                totalRecords = excelData.size,
+                successfulRecords = 0,
+                failedRecords = excelData.size,
+                errors = listOf("Failed to fetch items: ${itemsResult.exceptionOrNull()?.message}"),
+                message = "Import failed - could not fetch existing data"
+            )
+        }
+
+        val items = itemsResult.getOrNull() ?: emptyList()
         val itemMap = items.associate { it.name.trim().lowercase() to (it.id ?: "") }
 
         excelData.forEachIndexed { index, row ->
@@ -392,7 +441,7 @@ class ImportExportViewModel @Inject constructor(
     }
 
     private suspend fun exportCategories(context: Context, file: File) {
-        val categories = categoryRepository.getAllCategories()
+        val categories = categoryRepository.getAllCategories().first().getOrThrow()
         val headers = listOf("ID", "Name", "Description", "Created At")
         val data = categories.map { category ->
             listOf(
@@ -415,7 +464,7 @@ class ImportExportViewModel @Inject constructor(
     }
 
     private suspend fun exportRacks(context: Context, file: File) {
-        val racks = rackRepository.getAllRacks()
+        val racks = rackRepository.getAllRacks().first().getOrThrow()
         val headers = listOf("ID", "Name", "Description", "Godown ID", "Is Active", "Created At")
         val data = racks.map { rack ->
             listOf(
@@ -440,7 +489,7 @@ class ImportExportViewModel @Inject constructor(
     }
 
     private suspend fun exportItems(context: Context, file: File) {
-        val items = itemRepository.getAllItems()
+        val items = itemRepository.getAllItems().first().getOrThrow()
         val headers = listOf("ID", "Name", "Category ID", "Godown ID", "Rack ID", "Unit of Measure", "Minimum Stock Level", "Is Active", "Created At")
         val data = items.map { item ->
             listOf(
@@ -468,7 +517,7 @@ class ImportExportViewModel @Inject constructor(
     }
 
     private suspend fun exportCurrentStock(context: Context, file: File) {
-        val stocks = itemRepository.getCurrentStock()
+        val stocks = itemRepository.getCurrentStock().first().getOrThrow()
         val headers = listOf("Item Name", "Category", "Godown", "Rack", "Unit", "Min Stock", "Total Inward", "Total Outward", "Current Stock", "Is Low Stock")
         val data = stocks.map { stock ->
             listOf(
@@ -497,7 +546,7 @@ class ImportExportViewModel @Inject constructor(
     }
 
     private suspend fun exportInwardTransactions(context: Context, file: File) {
-        val inwardItems = inwardRepository.getAllInward()
+        val inwardItems = inwardRepository.getAllInwardItems().first().getOrThrow()
         val headers = listOf("ID", "Item ID", "Vendor Name", "Purchase Date", "Quantity", "Price Per Unit", "Price Without GST", "GST %", "Price With GST", "Bill Number", "Created At")
         val data = inwardItems.map { inward ->
             listOf(
