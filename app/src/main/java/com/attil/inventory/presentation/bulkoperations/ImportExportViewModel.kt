@@ -7,6 +7,10 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.attil.inventory.data.model.bulk.ImportResult
+import com.attil.inventory.data.model.management.CreateCategoryRequest
+import com.attil.inventory.data.model.management.CreateRackRequest
+import com.attil.inventory.data.model.management.CreateItemRequest
+import com.attil.inventory.data.model.transaction.CreateInwardItemRequest
 import com.attil.inventory.data.repository.CategoryRepository
 import com.attil.inventory.data.repository.ItemRepository
 import com.attil.inventory.data.repository.RackRepository
@@ -16,6 +20,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -124,7 +129,13 @@ class ImportExportViewModel @Inject constructor(
                 val name = row["name"] ?: throw Exception("Missing name")
                 val description = row["description"]
 
-                categoryRepository.createCategory(name, description)
+                val request = CreateCategoryRequest(name, description)
+                val result = categoryRepository.createCategory(request).first()
+
+                if (result.isFailure) {
+                    throw Exception(result.exceptionOrNull()?.message ?: "Unknown error")
+                }
+
                 successCount++
             } catch (e: Exception) {
                 errors.add("Row ${index + 2}: ${e.message}")
@@ -160,7 +171,13 @@ class ImportExportViewModel @Inject constructor(
                 val godownId = godownMap[godownName.trim().lowercase()]
                     ?: throw Exception("Godown '$godownName' not found. Please create it first.")
 
-                rackRepository.createRack(name, description, godownId)
+                val request = CreateRackRequest(name, description, godownId)
+                val result = rackRepository.createRack(request).first()
+
+                if (result.isFailure) {
+                    throw Exception(result.exceptionOrNull()?.message ?: "Unknown error")
+                }
+
                 successCount++
             } catch (e: Exception) {
                 errors.add("Row ${index + 2}: ${e.message}")
@@ -221,7 +238,7 @@ class ImportExportViewModel @Inject constructor(
                     } else null
                 }
 
-                itemRepository.createItem(
+                val request = CreateItemRequest(
                     name = name,
                     categoryId = categoryId,
                     godownId = godownId,
@@ -230,6 +247,12 @@ class ImportExportViewModel @Inject constructor(
                     minimumStockLevel = minimumStockLevel,
                     cuisineIds = emptyList()
                 )
+                val result = itemRepository.createItem(request).first()
+
+                if (result.isFailure) {
+                    throw Exception(result.exceptionOrNull()?.message ?: "Unknown error")
+                }
+
                 successCount++
             } catch (e: Exception) {
                 errors.add("Row ${index + 2}: ${e.message}")
@@ -270,7 +293,7 @@ class ImportExportViewModel @Inject constructor(
                 val itemId = itemMap[itemName.trim().lowercase()]
                     ?: throw Exception("Item '$itemName' not found. Please import items first.")
 
-                inwardRepository.createInward(
+                val request = CreateInwardItemRequest(
                     itemId = itemId,
                     vendorName = vendorName,
                     vendorContact = null,
@@ -286,6 +309,12 @@ class ImportExportViewModel @Inject constructor(
                     cuisineId = null,
                     createdBy = null
                 )
+                val result = inwardRepository.createInwardItem(request).first()
+
+                if (result.isFailure) {
+                    throw Exception(result.exceptionOrNull()?.message ?: "Unknown error")
+                }
+
                 successCount++
             } catch (e: Exception) {
                 errors.add("Row ${index + 2}: ${e.message}")
