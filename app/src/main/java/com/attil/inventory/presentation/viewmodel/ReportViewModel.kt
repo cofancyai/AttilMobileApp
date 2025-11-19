@@ -256,6 +256,7 @@ class ReportViewModel @Inject constructor(
         when (_currentReportType.value) {
             ReportType.INWARD -> loadInwardReport()
             ReportType.OUTWARD -> loadOutwardReport()
+            ReportType.INDENT -> {} // Not handled by this ViewModel - use IndentViewModel
         }
     }
 
