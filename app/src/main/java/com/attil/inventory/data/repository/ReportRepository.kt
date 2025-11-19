@@ -102,12 +102,12 @@ class ReportRepository @Inject constructor(
             Log.d("ReportRepo", "API Query params:")
             Log.d("ReportRepo", "  dateRange: $dateFilter")
             Log.d("ReportRepo", "  cuisineId: $cuisineFilter")
-            Log.d("ReportRepo", "  select: *,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name)")
+            Log.d("ReportRepo", "  select: *,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name),users!created_by(full_name)")
 
             val response = reportApiService.getOutwardReportByDateRange(
                 dateRange = dateFilter,
                 cuisineId = cuisineFilter,
-                select = "*,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name)",
+                select = "*,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name),users!created_by(full_name)",
                 order = "usage_date.desc"
             )
 
@@ -347,6 +347,9 @@ class ReportRepository @Inject constructor(
                     Log.w("ReportRepo", "⚠️ Missing 'cuisines' field")
                 }
 
+                val users = data["users"] as? Map<String, Any>
+                val chefName = users?.get("full_name")?.toString()
+
                 val itemId = items?.get("id")?.toString() ?: ""
                 val usageDate = data["usage_date"]?.toString() ?: ""
                 val outwardQuantity = (data["outward_quantity"] as? Number)?.toDouble() ?: 0.0
@@ -354,6 +357,7 @@ class ReportRepository @Inject constructor(
 
                 Log.d("ReportRepo", "Item ID: $itemId, Usage Date: $usageDate, Quantity: $outwardQuantity")
                 Log.d("ReportRepo", "  created_by value: $createdBy")
+                Log.d("ReportRepo", "  chefName from users: $chefName")
 
                 // Calculate moving average cost
                 val costData = calculateMovingAverageCost(itemId, usageDate)
@@ -373,7 +377,7 @@ class ReportRepository @Inject constructor(
                     indentId = data["indent_id"]?.toString(),
                     notes = data["notes"]?.toString(),
                     createdBy = createdBy,
-                    chefName = createdBy, // Temporarily use created_by as chef name for debugging
+                    chefName = chefName, // Get chef name from users join
                     calculatedCostPerUnit = costData.first,
                     calculatedTotalCost = costData.first * outwardQuantity,
                     costCalculationMethod = costData.second
