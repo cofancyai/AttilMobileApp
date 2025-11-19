@@ -142,9 +142,11 @@ object ExcelUtils {
             }
         }
 
-        // Auto-size columns
+        // Set column widths manually (autoSizeColumn uses AWT which is not available on Android)
         headers.indices.forEach { colIndex ->
-            sheet.autoSizeColumn(colIndex)
+            // Set a reasonable default width (256 = 1 character width)
+            // 20 * 256 = 20 characters wide
+            sheet.setColumnWidth(colIndex, 20 * 256)
         }
 
         workbook.write(outputStream)
