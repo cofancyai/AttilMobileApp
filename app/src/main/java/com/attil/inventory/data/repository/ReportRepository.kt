@@ -102,12 +102,12 @@ class ReportRepository @Inject constructor(
             Log.d("ReportRepo", "API Query params:")
             Log.d("ReportRepo", "  dateRange: $dateFilter")
             Log.d("ReportRepo", "  cuisineId: $cuisineFilter")
-            Log.d("ReportRepo", "  select: *,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name),users!created_by(full_name)")
+            Log.d("ReportRepo", "  select: *,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name)")
 
             val response = reportApiService.getOutwardReportByDateRange(
                 dateRange = dateFilter,
                 cuisineId = cuisineFilter,
-                select = "*,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name),users!created_by(full_name)",
+                select = "*,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name)",
                 order = "usage_date.desc"
             )
 
@@ -121,7 +121,12 @@ class ReportRepository @Inject constructor(
                 if (rawData.isEmpty()) {
                     Log.w("ReportRepo", "⚠️ No data returned from API")
                 } else {
-                    Log.d("ReportRepo", "First item sample: ${rawData.firstOrNull()}")
+                    Log.d("ReportRepo", "First item sample (full): ${rawData.firstOrNull()}")
+                    rawData.firstOrNull()?.let { item ->
+                        Log.d("ReportRepo", "  created_by: ${item["created_by"]}")
+                        Log.d("ReportRepo", "  cuisine_id: ${item["cuisine_id"]}")
+                        Log.d("ReportRepo", "  cuisines: ${item["cuisines"]}")
+                    }
                 }
 
                 Log.d("ReportRepo", "Starting to parse outward report items...")
@@ -342,16 +347,13 @@ class ReportRepository @Inject constructor(
                     Log.w("ReportRepo", "⚠️ Missing 'cuisines' field")
                 }
 
-                val users = data["users"] as? Map<String, Any>
-                if (users == null) {
-                    Log.w("ReportRepo", "⚠️ Missing 'users' field")
-                }
-
                 val itemId = items?.get("id")?.toString() ?: ""
                 val usageDate = data["usage_date"]?.toString() ?: ""
                 val outwardQuantity = (data["outward_quantity"] as? Number)?.toDouble() ?: 0.0
+                val createdBy = data["created_by"]?.toString()
 
                 Log.d("ReportRepo", "Item ID: $itemId, Usage Date: $usageDate, Quantity: $outwardQuantity")
+                Log.d("ReportRepo", "  created_by value: $createdBy")
 
                 // Calculate moving average cost
                 val costData = calculateMovingAverageCost(itemId, usageDate)
@@ -370,8 +372,8 @@ class ReportRepository @Inject constructor(
                     sourceType = data["source_type"]?.toString(),
                     indentId = data["indent_id"]?.toString(),
                     notes = data["notes"]?.toString(),
-                    createdBy = data["created_by"]?.toString(),
-                    chefName = users?.get("full_name")?.toString(),
+                    createdBy = createdBy,
+                    chefName = createdBy, // Temporarily use created_by as chef name for debugging
                     calculatedCostPerUnit = costData.first,
                     calculatedTotalCost = costData.first * outwardQuantity,
                     costCalculationMethod = costData.second
