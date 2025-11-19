@@ -108,9 +108,9 @@ class ImportExportViewModel @Inject constructor(
     private fun getExpectedHeaders(importType: String): List<String> {
         return when (importType) {
             "CATEGORIES" -> listOf("name", "description")
-            "RACKS" -> listOf("name", "description", "godown_id")
-            "ITEMS" -> listOf("name", "category_id", "godown_id", "rack_id", "unit_of_measure", "minimum_stock_level", "is_active")
-            "INITIAL_STOCK" -> listOf("item_id", "vendor_name", "purchase_date", "inward_quantity", "price_per_unit", "price_without_gst", "gst_percentage", "price_with_gst")
+            "RACKS" -> listOf("name", "description", "godown_name")
+            "ITEMS" -> listOf("name", "category_name", "godown_name", "rack_name", "unit_of_measure", "minimum_stock_level")
+            "INITIAL_STOCK" -> listOf("item_name", "vendor_name", "purchase_date", "inward_quantity", "price_per_unit", "price_without_gst", "gst_percentage", "price_with_gst")
             else -> emptyList()
         }
     }
@@ -146,15 +146,19 @@ class ImportExportViewModel @Inject constructor(
         val errors = mutableListOf<String>()
         var successCount = 0
 
+        // Fetch all godowns and create name-to-ID mapping
+        val godowns = rackRepository.getAllRacks().mapNotNull { it.godowns }.distinctBy { it.id }
+        val godownMap = godowns.associate { it.name.trim().lowercase() to (it.id ?: "") }
+
         excelData.forEachIndexed { index, row ->
             try {
                 val name = row["name"] ?: throw Exception("Missing name")
                 val description = row["description"]
-                val godownId = row["godown_id"] ?: throw Exception("Missing godown_id")
+                val godownName = row["godown_name"] ?: throw Exception("Missing godown_name")
 
-                if (godownId.contains("REPLACE")) {
-                    throw Exception("Please replace godown_id with actual UUID")
-                }
+                // Lookup godown ID by name
+                val godownId = godownMap[godownName.trim().lowercase()]
+                    ?: throw Exception("Godown '$godownName' not found. Please create it first.")
 
                 rackRepository.createRack(name, description, godownId)
                 successCount++
@@ -178,18 +182,43 @@ class ImportExportViewModel @Inject constructor(
         val errors = mutableListOf<String>()
         var successCount = 0
 
+        // Fetch all categories, racks, godowns and create name-to-ID mappings
+        val categories = categoryRepository.getAllCategories()
+        val categoryMap = categories.associate { it.name.trim().lowercase() to (it.id ?: "") }
+
+        val racks = rackRepository.getAllRacks()
+        val rackMap = racks.associate { it.name.trim().lowercase() to (it.id ?: "") }
+
+        val godowns = racks.mapNotNull { it.godowns }.distinctBy { it.id }
+        val godownMap = godowns.associate { it.name.trim().lowercase() to (it.id ?: "") }
+
         excelData.forEachIndexed { index, row ->
             try {
                 val name = row["name"] ?: throw Exception("Missing name")
-                val categoryId = row["category_id"] ?: throw Exception("Missing category_id")
+                val categoryName = row["category_name"] ?: throw Exception("Missing category_name")
                 val unitOfMeasure = row["unit_of_measure"] ?: throw Exception("Missing unit_of_measure")
                 val minimumStockLevel = row["minimum_stock_level"]?.toDoubleOrNull() ?: 0.0
-                val godownId = row["godown_id"]
-                val rackId = row["rack_id"]
-                val isActive = row["is_active"]?.toBoolean() ?: true
+                val godownName = row["godown_name"]
+                val rackName = row["rack_name"]
 
-                if (categoryId.contains("REPLACE")) {
-                    throw Exception("Please replace category_id with actual UUID")
+                // Lookup category ID by name (required)
+                val categoryId = categoryMap[categoryName.trim().lowercase()]
+                    ?: throw Exception("Category '$categoryName' not found. Please import categories first.")
+
+                // Lookup godown ID by name (optional)
+                val godownId = godownName?.let {
+                    if (it.isNotBlank()) {
+                        godownMap[it.trim().lowercase()]
+                            ?: throw Exception("Godown '$it' not found. Please create it first.")
+                    } else null
+                }
+
+                // Lookup rack ID by name (optional)
+                val rackId = rackName?.let {
+                    if (it.isNotBlank()) {
+                        rackMap[it.trim().lowercase()]
+                            ?: throw Exception("Rack '$it' not found. Please import racks first.")
+                    } else null
                 }
 
                 itemRepository.createItem(
@@ -222,9 +251,13 @@ class ImportExportViewModel @Inject constructor(
         val errors = mutableListOf<String>()
         var successCount = 0
 
+        // Fetch all items and create name-to-ID mapping
+        val items = itemRepository.getAllItems()
+        val itemMap = items.associate { it.name.trim().lowercase() to (it.id ?: "") }
+
         excelData.forEachIndexed { index, row ->
             try {
-                val itemId = row["item_id"] ?: throw Exception("Missing item_id")
+                val itemName = row["item_name"] ?: throw Exception("Missing item_name")
                 val vendorName = row["vendor_name"] ?: "Initial Stock Import"
                 val purchaseDate = row["purchase_date"] ?: throw Exception("Missing purchase_date")
                 val inwardQuantity = row["inward_quantity"]?.toDoubleOrNull() ?: throw Exception("Invalid inward_quantity")
@@ -233,9 +266,9 @@ class ImportExportViewModel @Inject constructor(
                 val gstPercentage = row["gst_percentage"]?.toDoubleOrNull()
                 val priceWithGst = row["price_with_gst"]?.toDoubleOrNull()
 
-                if (itemId.contains("REPLACE")) {
-                    throw Exception("Please replace item_id with actual UUID")
-                }
+                // Lookup item ID by name
+                val itemId = itemMap[itemName.trim().lowercase()]
+                    ?: throw Exception("Item '$itemName' not found. Please import items first.")
 
                 inwardRepository.createInward(
                     itemId = itemId,
