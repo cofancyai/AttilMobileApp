@@ -933,17 +933,10 @@ class IndentViewModel @Inject constructor(
             try {
                 Log.d("IndentViewModel", "Creating indent PDF with ${report.totalIndents} indents")
 
-                // File path logic
-                val file = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-                        ?: File(context.filesDir, "documents")
-                    if (!documentsDir.exists()) documentsDir.mkdirs()
-                    File(documentsDir, fileName)
-                } else {
-                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                    if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                    File(downloadsDir, fileName)
-                }
+                // Save to Downloads folder on all Android versions
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val file = File(downloadsDir, fileName)
 
                 val pdfDocument = PdfDocument()
                 val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 Portrait
@@ -1137,16 +1130,10 @@ class IndentViewModel @Inject constructor(
             try {
                 Log.d("IndentViewModel", "Creating CSV with ${report.totalIndents} indents")
 
-                val file = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-                        ?: File(context.filesDir, "documents")
-                    if (!documentsDir.exists()) documentsDir.mkdirs()
-                    File(documentsDir, fileName)
-                } else {
-                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                    if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                    File(downloadsDir, fileName)
-                }
+                // Save to Downloads folder on all Android versions
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val file = File(downloadsDir, fileName)
 
                 FileOutputStream(file).use { fos ->
                     // Header
@@ -1206,7 +1193,7 @@ class IndentViewModel @Inject constructor(
             val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 FileProvider.getUriForFile(
                     context,
-                    "com.attil.inventory.provider",
+                    "${context.packageName}.fileprovider",
                     file
                 )
             } else {
@@ -1222,6 +1209,7 @@ class IndentViewModel @Inject constructor(
             context.startActivity(intent)
         } catch (e: Exception) {
             Log.e("IndentViewModel", "Error opening PDF", e)
+            Toast.makeText(context, "No PDF viewer app found", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1230,7 +1218,7 @@ class IndentViewModel @Inject constructor(
             val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 FileProvider.getUriForFile(
                     context,
-                    "com.attil.inventory.provider",
+                    "${context.packageName}.fileprovider",
                     file
                 )
             } else {
@@ -1246,6 +1234,7 @@ class IndentViewModel @Inject constructor(
             context.startActivity(intent)
         } catch (e: Exception) {
             Log.e("IndentViewModel", "Error opening CSV", e)
+            Toast.makeText(context, "No CSV/Excel viewer app found", Toast.LENGTH_SHORT).show()
         }
     }
 }

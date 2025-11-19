@@ -458,50 +458,60 @@ class ImportExportViewModel @Inject constructor(
         ) ?: throw Exception("Failed to create file in Downloads")
 
         context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-            when (exportType) {
-                "CATEGORIES" -> {
-                    val categories = categoryRepository.getAllCategories().first().getOrThrow()
-                    val headers = listOf("ID", "Name", "Description", "Created At")
-                    val data = categories.map { category ->
-                        listOf(category.id ?: "", category.name, category.description ?: "", category.createdAt ?: "")
+            try {
+                when (exportType) {
+                    "CATEGORIES" -> {
+                        val result = categoryRepository.getAllCategories().first()
+                        val categories = result.getOrThrow()
+                        val headers = listOf("ID", "Name", "Description", "Created At")
+                        val data = categories.map { category ->
+                            listOf(category.id ?: "", category.name, category.description ?: "", category.createdAt ?: "")
+                        }
+                        ExcelUtils.createExcelFile(context, outputStream, "Categories", headers, data)
                     }
-                    ExcelUtils.createExcelFile(context, outputStream, "Categories", headers, data)
-                }
-                "RACKS" -> {
-                    val racks = rackRepository.getAllRacks().first().getOrThrow()
-                    val headers = listOf("ID", "Name", "Description", "Godown ID", "Is Active", "Created At")
-                    val data = racks.map { rack ->
-                        listOf(rack.id ?: "", rack.name, rack.description ?: "", rack.godownId, rack.isActive, rack.createdAt ?: "")
+                    "RACKS" -> {
+                        val result = rackRepository.getAllRacks().first()
+                        val racks = result.getOrThrow()
+                        val headers = listOf("ID", "Name", "Description", "Godown ID", "Is Active", "Created At")
+                        val data = racks.map { rack ->
+                            listOf(rack.id ?: "", rack.name, rack.description ?: "", rack.godownId, rack.isActive, rack.createdAt ?: "")
+                        }
+                        ExcelUtils.createExcelFile(context, outputStream, "Racks", headers, data)
                     }
-                    ExcelUtils.createExcelFile(context, outputStream, "Racks", headers, data)
-                }
-                "ITEMS" -> {
-                    val items = itemRepository.getAllItems().first().getOrThrow()
-                    val headers = listOf("ID", "Name", "Category ID", "Godown ID", "Rack ID", "Unit", "Min Stock", "Is Active", "Created At")
-                    val data = items.map { item ->
-                        listOf(item.id ?: "", item.name, item.categoryId, item.godownId ?: "", item.rackId ?: "", item.unitOfMeasure, item.minimumStockLevel, item.isActive, item.createdAt ?: "")
+                    "ITEMS" -> {
+                        val result = itemRepository.getAllItems().first()
+                        val items = result.getOrThrow()
+                        val headers = listOf("ID", "Name", "Category ID", "Godown ID", "Rack ID", "Unit", "Min Stock", "Is Active", "Created At")
+                        val data = items.map { item ->
+                            listOf(item.id ?: "", item.name, item.categoryId, item.godownId ?: "", item.rackId ?: "", item.unitOfMeasure, item.minimumStockLevel, item.isActive, item.createdAt ?: "")
+                        }
+                        ExcelUtils.createExcelFile(context, outputStream, "Items", headers, data)
                     }
-                    ExcelUtils.createExcelFile(context, outputStream, "Items", headers, data)
-                }
-                "CURRENT_STOCK" -> {
-                    val stocks = currentStockRepository.getAllCurrentStocks().first().getOrThrow()
-                    val headers = listOf("Item", "Category", "Godown", "Rack", "Unit", "Min Stock", "Inward", "Outward", "Current Stock", "Low Stock")
-                    val data = stocks.map { stock ->
-                        listOf(stock.itemName, stock.categoryName, stock.godownName ?: "", stock.rackName ?: "", stock.unitOfMeasure, stock.minimumStockLevel, stock.totalInward, stock.totalOutward, stock.currentStock, stock.isLowStock)
+                    "CURRENT_STOCK" -> {
+                        val result = currentStockRepository.getAllCurrentStocks().first()
+                        val stocks = result.getOrThrow()
+                        val headers = listOf("Item", "Category", "Godown", "Rack", "Unit", "Min Stock", "Inward", "Outward", "Current Stock", "Low Stock")
+                        val data = stocks.map { stock ->
+                            listOf(stock.itemName, stock.categoryName, stock.godownName ?: "", stock.rackName ?: "", stock.unitOfMeasure, stock.minimumStockLevel, stock.totalInward, stock.totalOutward, stock.currentStock, stock.isLowStock)
+                        }
+                        ExcelUtils.createExcelFile(context, outputStream, "Current Stock", headers, data)
                     }
-                    ExcelUtils.createExcelFile(context, outputStream, "Current Stock", headers, data)
-                }
-                "INWARD_TRANSACTIONS" -> {
-                    val inwardItems = inwardRepository.getAllInwardItems().first().getOrThrow()
-                    val headers = listOf("ID", "Item ID", "Vendor", "Date", "Quantity", "Price/Unit", "Price-GST", "GST%", "Price+GST", "Bill", "Created")
-                    val data = inwardItems.map { inward ->
-                        listOf(inward.id ?: "", inward.itemId, inward.vendorName, inward.purchaseDate, inward.inwardQuantity, inward.pricePerUnit, inward.priceWithoutGst ?: 0.0, inward.gstPercentage ?: 0.0, inward.priceWithGst ?: 0.0, inward.billNumber ?: "", inward.createdAt ?: "")
+                    "INWARD_TRANSACTIONS" -> {
+                        val result = inwardRepository.getAllInwardItems().first()
+                        val inwardItems = result.getOrThrow()
+                        val headers = listOf("ID", "Item ID", "Vendor", "Date", "Quantity", "Price/Unit", "Price-GST", "GST%", "Price+GST", "Bill", "Created")
+                        val data = inwardItems.map { inward ->
+                            listOf(inward.id ?: "", inward.itemId, inward.vendorName, inward.purchaseDate, inward.inwardQuantity, inward.pricePerUnit, inward.priceWithoutGst ?: 0.0, inward.gstPercentage ?: 0.0, inward.priceWithGst ?: 0.0, inward.billNumber ?: "", inward.createdAt ?: "")
+                        }
+                        ExcelUtils.createExcelFile(context, outputStream, "Inward Transactions", headers, data)
                     }
-                    ExcelUtils.createExcelFile(context, outputStream, "Inward Transactions", headers, data)
+                    else -> {
+                        ExcelUtils.createExcelFile(context, outputStream, "Export", listOf("Message"), listOf(listOf("Not implemented yet")))
+                    }
                 }
-                else -> {
-                    ExcelUtils.createExcelFile(context, outputStream, "Export", listOf("Message"), listOf(listOf("Not implemented yet")))
-                }
+            } catch (e: Exception) {
+                // Re-throw with clearer message
+                throw Exception("Failed to export $exportType: ${e.message}", e)
             }
         }
 
