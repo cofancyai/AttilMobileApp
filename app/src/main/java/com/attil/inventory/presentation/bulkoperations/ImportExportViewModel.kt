@@ -15,6 +15,7 @@ import com.attil.inventory.data.repository.CategoryRepository
 import com.attil.inventory.data.repository.ItemRepository
 import com.attil.inventory.data.repository.RackRepository
 import com.attil.inventory.data.repository.InwardRepository
+import com.attil.inventory.data.repository.CurrentStockRepository
 import com.attil.inventory.utils.ExcelUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,7 +37,8 @@ class ImportExportViewModel @Inject constructor(
     private val categoryRepository: CategoryRepository,
     private val rackRepository: RackRepository,
     private val itemRepository: ItemRepository,
-    private val inwardRepository: InwardRepository
+    private val inwardRepository: InwardRepository,
+    private val currentStockRepository: CurrentStockRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ImportExportUiState())
@@ -517,7 +519,7 @@ class ImportExportViewModel @Inject constructor(
     }
 
     private suspend fun exportCurrentStock(context: Context, file: File) {
-        val stocks = itemRepository.getCurrentStock().first().getOrThrow()
+        val stocks = currentStockRepository.getAllCurrentStocks().first().getOrThrow()
         val headers = listOf("Item Name", "Category", "Godown", "Rack", "Unit", "Min Stock", "Total Inward", "Total Outward", "Current Stock", "Is Low Stock")
         val data = stocks.map { stock ->
             listOf(
