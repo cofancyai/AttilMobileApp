@@ -372,14 +372,18 @@ fun DropdownField(
             value = selectedLabel,
             onValueChange = {},
             readOnly = true,
-            label = { Text(label) },
+            label = { Text(label, color = Color(0xFF666666)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color(0xFF1976D2),
-                unfocusedBorderColor = Color(0xFFCCCCCC)
+                unfocusedBorderColor = Color(0xFFCCCCCC),
+                focusedTextColor = Color(0xFF333333),
+                unfocusedTextColor = Color(0xFF333333),
+                focusedLabelColor = Color(0xFF1976D2),
+                unfocusedLabelColor = Color(0xFF666666)
             )
         )
 
@@ -389,7 +393,7 @@ fun DropdownField(
         ) {
             options.forEach { (label, value) ->
                 DropdownMenuItem(
-                    text = { Text(label) },
+                    text = { Text(label, color = Color(0xFF333333)) },
                     onClick = {
                         onValueChange(value)
                         expanded = false

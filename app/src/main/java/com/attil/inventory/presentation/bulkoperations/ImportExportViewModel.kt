@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
@@ -31,11 +32,13 @@ import com.attil.inventory.data.repository.VendorRepository
 import com.attil.inventory.data.repository.UsageRepository
 import com.attil.inventory.utils.ExcelUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
@@ -1138,19 +1141,30 @@ class ImportExportViewModel @Inject constructor(
                 val fileName = "${templateType.lowercase()}_template.xlsx"
                 val headers = getTemplateHeaders(templateType)
 
-                val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    saveTemplateToDownloads(context, fileName, templateType, headers)
-                } else {
-                    saveTemplateToExternalStorage(context, fileName, templateType, headers)
+                val uri = withContext(Dispatchers.IO) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        saveTemplateToDownloads(context, fileName, templateType, headers)
+                    } else {
+                        saveTemplateToExternalStorage(context, fileName, templateType, headers)
+                    }
                 }
 
-                // Open the file
-                val intent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(uri, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                // Try to open the file, but don't crash if no app is available
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+
+                    // Use chooser to avoid crash
+                    val chooser = Intent.createChooser(intent, "Open template with")
+                    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(chooser)
+                } catch (e: Exception) {
+                    Log.e("ImportExportVM", "Could not open file, but it was saved: ${e.message}")
+                    // File is still saved, just can't open it
                 }
-                context.startActivity(intent)
 
                 _uiState.value = _uiState.value.copy(
                     isProcessing = false,
@@ -1159,7 +1173,7 @@ class ImportExportViewModel @Inject constructor(
                         totalRecords = 0,
                         successfulRecords = 0,
                         failedRecords = 0,
-                        message = "Template downloaded successfully: $fileName"
+                        message = "Template downloaded to Downloads folder: $fileName"
                     )
                 )
             } catch (e: Exception) {
