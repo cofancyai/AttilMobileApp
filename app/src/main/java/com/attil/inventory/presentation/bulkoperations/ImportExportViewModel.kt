@@ -768,6 +768,15 @@ class ImportExportViewModel @Inject constructor(
         context.contentResolver.openOutputStream(uri)?.use { outputStream ->
             try {
                 when (exportType) {
+                    "GODOWNS" -> {
+                        val result = godownRepository.getAllGodowns().first()
+                        val godowns = result.getOrThrow()
+                        val headers = listOf("ID", "Name", "Description", "Location", "Created At")
+                        val data = godowns.map { godown ->
+                            listOf(godown.id ?: "", godown.name, godown.description ?: "", godown.location ?: "", godown.createdAt ?: "")
+                        }
+                        ExcelUtils.createExcelFile(context, outputStream, "Godowns", headers, data)
+                    }
                     "CATEGORIES" -> {
                         val result = categoryRepository.getAllCategories().first()
                         val categories = result.getOrThrow()
@@ -776,6 +785,33 @@ class ImportExportViewModel @Inject constructor(
                             listOf(category.id ?: "", category.name, category.description ?: "", category.createdAt ?: "")
                         }
                         ExcelUtils.createExcelFile(context, outputStream, "Categories", headers, data)
+                    }
+                    "CUISINES" -> {
+                        val result = cuisineRepository.getAllCuisines().first()
+                        val cuisines = result.getOrThrow()
+                        val headers = listOf("ID", "Name", "Description", "Created At")
+                        val data = cuisines.map { cuisine ->
+                            listOf(cuisine.id ?: "", cuisine.name, cuisine.description ?: "", cuisine.createdAt ?: "")
+                        }
+                        ExcelUtils.createExcelFile(context, outputStream, "Cuisines", headers, data)
+                    }
+                    "VENDORS" -> {
+                        val result = vendorRepository.getAllVendors().first()
+                        val vendors = result.getOrThrow()
+                        val headers = listOf("ID", "Name", "Address", "Contact Number", "Email", "Created At")
+                        val data = vendors.map { vendor ->
+                            listOf(vendor.id ?: "", vendor.name, vendor.address ?: "", vendor.contactNumber ?: "", vendor.email ?: "", vendor.createdAt ?: "")
+                        }
+                        ExcelUtils.createExcelFile(context, outputStream, "Vendors", headers, data)
+                    }
+                    "USAGE" -> {
+                        val result = usageRepository.getAllUsages().first()
+                        val usages = result.getOrThrow()
+                        val headers = listOf("ID", "Name", "Description", "Created At")
+                        val data = usages.map { usage ->
+                            listOf(usage.id ?: "", usage.name, usage.description ?: "", usage.createdAt ?: "")
+                        }
+                        ExcelUtils.createExcelFile(context, outputStream, "Usage", headers, data)
                     }
                     "RACKS" -> {
                         val result = rackRepository.getAllRacks().first()
@@ -832,7 +868,11 @@ class ImportExportViewModel @Inject constructor(
 
         file.outputStream().use { outputStream ->
             when (exportType) {
+                "GODOWNS" -> exportGodowns(context, file)
                 "CATEGORIES" -> exportCategories(context, file)
+                "CUISINES" -> exportCuisines(context, file)
+                "VENDORS" -> exportVendors(context, file)
+                "USAGE" -> exportUsage(context, file)
                 "RACKS" -> exportRacks(context, file)
                 "ITEMS" -> exportItems(context, file)
                 "CURRENT_STOCK" -> exportCurrentStock(context, file)
@@ -844,6 +884,30 @@ class ImportExportViewModel @Inject constructor(
         }
 
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    }
+
+    private suspend fun exportGodowns(context: Context, file: File) {
+        val godowns = godownRepository.getAllGodowns().first().getOrThrow()
+        val headers = listOf("ID", "Name", "Description", "Location", "Created At")
+        val data = godowns.map { godown ->
+            listOf(
+                godown.id ?: "",
+                godown.name,
+                godown.description ?: "",
+                godown.location ?: "",
+                godown.createdAt ?: ""
+            )
+        }
+
+        file.outputStream().use { outputStream ->
+            ExcelUtils.createExcelFile(
+                context,
+                outputStream,
+                "Godowns",
+                headers,
+                data
+            )
+        }
     }
 
     private suspend fun exportCategories(context: Context, file: File) {
@@ -863,6 +927,77 @@ class ImportExportViewModel @Inject constructor(
                 context,
                 outputStream,
                 "Categories",
+                headers,
+                data
+            )
+        }
+    }
+
+    private suspend fun exportCuisines(context: Context, file: File) {
+        val cuisines = cuisineRepository.getAllCuisines().first().getOrThrow()
+        val headers = listOf("ID", "Name", "Description", "Created At")
+        val data = cuisines.map { cuisine ->
+            listOf(
+                cuisine.id ?: "",
+                cuisine.name,
+                cuisine.description ?: "",
+                cuisine.createdAt ?: ""
+            )
+        }
+
+        file.outputStream().use { outputStream ->
+            ExcelUtils.createExcelFile(
+                context,
+                outputStream,
+                "Cuisines",
+                headers,
+                data
+            )
+        }
+    }
+
+    private suspend fun exportVendors(context: Context, file: File) {
+        val vendors = vendorRepository.getAllVendors().first().getOrThrow()
+        val headers = listOf("ID", "Name", "Address", "Contact Number", "Email", "Created At")
+        val data = vendors.map { vendor ->
+            listOf(
+                vendor.id ?: "",
+                vendor.name,
+                vendor.address ?: "",
+                vendor.contactNumber ?: "",
+                vendor.email ?: "",
+                vendor.createdAt ?: ""
+            )
+        }
+
+        file.outputStream().use { outputStream ->
+            ExcelUtils.createExcelFile(
+                context,
+                outputStream,
+                "Vendors",
+                headers,
+                data
+            )
+        }
+    }
+
+    private suspend fun exportUsage(context: Context, file: File) {
+        val usages = usageRepository.getAllUsage().first().getOrThrow()
+        val headers = listOf("ID", "Name", "Description", "Created At")
+        val data = usages.map { usage ->
+            listOf(
+                usage.id ?: "",
+                usage.name,
+                usage.description ?: "",
+                usage.createdAt ?: ""
+            )
+        }
+
+        file.outputStream().use { outputStream ->
+            ExcelUtils.createExcelFile(
+                context,
+                outputStream,
+                "Usage",
                 headers,
                 data
             )
