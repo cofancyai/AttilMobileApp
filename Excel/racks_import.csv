@@ -1,0 +1,10 @@
+name,description,godown_id (replace with actual UUID)
+Rack-1,Rack-1 storage rack,REPLACE_WITH_GODOWN_UUID
+Rack-2,Rack-2 storage rack,REPLACE_WITH_GODOWN_UUID
+Rack-3,Rack-3 storage rack,REPLACE_WITH_GODOWN_UUID
+Rack-4,Rack-4 storage rack,REPLACE_WITH_GODOWN_UUID
+Rack-5,Rack-5 storage rack,REPLACE_WITH_GODOWN_UUID
+Rack-6,Rack-6 storage rack,REPLACE_WITH_GODOWN_UUID
+Rack-7,Rack-7 storage rack,REPLACE_WITH_GODOWN_UUID
+Rack-8,Rack-8 storage rack,REPLACE_WITH_GODOWN_UUID
+Rack-9,Rack-9 storage rack,REPLACE_WITH_GODOWN_UUID
