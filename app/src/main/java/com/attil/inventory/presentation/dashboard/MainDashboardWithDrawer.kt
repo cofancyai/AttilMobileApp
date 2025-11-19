@@ -37,6 +37,7 @@ import com.attil.inventory.presentation.reports.InventoryReportsScreen
 import com.attil.inventory.presentation.reports.ReportsMainScreen
 import com.attil.inventory.presentation.reports.IndentReportsScreen
 import com.attil.inventory.data.model.reports.ReportType
+import com.attil.inventory.presentation.bulkoperations.ImportExportScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,7 +65,7 @@ fun MainDashboardWithDrawer(
                 userPermissions = userPermissions,
                 onNavigate = { screen ->
                     // Check if user has permission for the screen
-                    if (userPermissions.contains(screen) || screen == "dashboard" || screen == "change_password") {
+                    if (userPermissions.contains(screen) || screen == "dashboard" || screen == "change_password" || screen == "import_export") {
                         currentScreen = screen
                         scope.launch { drawerState.close() }
                     }
@@ -301,6 +302,11 @@ fun MainDashboardWithDrawer(
                         } else {
                             UnauthorizedScreen(onBackClick = { currentScreen = "dashboard" })
                         }
+                    }
+                    "import_export" -> {
+                        ImportExportScreen(
+                            onBackClick = { currentScreen = "dashboard" }
+                        )
                     }
                     "change_password" -> {
                         ChangePasswordDialog(

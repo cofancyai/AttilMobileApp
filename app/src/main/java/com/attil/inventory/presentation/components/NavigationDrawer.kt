@@ -87,7 +87,7 @@ fun AppNavigationDrawer(
     // Filter navigation items based on user permissions
     val filteredNavigationItems = navigationItems.map { item ->
         when {
-            item.route == "dashboard" -> item // Dashboard always visible
+            item.route == "dashboard" || item.route == "import_export" -> item // Dashboard and Import/Export always visible
             item.subItems.isNotEmpty() -> {
                 // Filter sub-items based on permissions
                 val filteredSubItems = item.subItems.filter { subItem ->
