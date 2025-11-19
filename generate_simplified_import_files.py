@@ -291,18 +291,21 @@ def generate_simplified_import_files(excel_data):
                         'INITIAL-STOCK'
                     ])
 
-    # 5. Expected Current Stock Reference (unchanged)
+    # 5. Expected Current Stock Reference (matches database current_stock view)
     print("Generating expected_current_stock_reference.csv...")
     with open('/home/user/AttilMobileApp/Excel/expected_current_stock_reference.csv', 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow([
             'item_name',
             'category_name',
+            'godown_name',
             'rack_name',
             'unit_of_measure',
             'minimum_stock_level',
-            'expected_current_stock',
-            'will_be_low_stock'
+            'total_inward',
+            'total_outward',
+            'current_stock',
+            'is_low_stock'
         ])
 
         for row in data_rows:
@@ -328,17 +331,24 @@ def generate_simplified_import_files(excel_data):
                 except:
                     closing_stock_val = 0.0
 
-                will_be_low = 'YES' if closing_stock_val < min_stock_val else 'NO'
+                # For initial import: total_inward = closing_stock, total_outward = 0
+                total_inward = closing_stock_val
+                total_outward = 0.0
+                current_stock = total_inward - total_outward  # Should equal closing_stock
+                is_low_stock = 'YES' if current_stock < min_stock_val else 'NO'
 
                 if item_name:
                     writer.writerow([
                         item_name,
                         category,
+                        'Main Warehouse',  # godown_name
                         rack,
                         unit,
                         min_stock_val,
-                        closing_stock_val,
-                        will_be_low
+                        total_inward,
+                        total_outward,
+                        current_stock,
+                        is_low_stock
                     ])
 
     print("\n✅ All simplified import files generated!")
