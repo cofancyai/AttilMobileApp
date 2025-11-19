@@ -107,6 +107,15 @@ fun ReportsMainScreen(
                     onClick = { onReportSelected(ReportType.OUTWARD) }
                 )
 
+                // Indent Report Card
+                ReportCard(
+                    title = "Indent Report",
+                    description = "Track indent fulfillment and verification status",
+                    icon = Icons.Default.Assignment,
+                    color = Color(0xFF9C27B0),
+                    onClick = { onReportSelected(ReportType.INDENT) }
+                )
+
                 Spacer(modifier = Modifier.weight(1f))
             }
         }

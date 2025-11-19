@@ -86,4 +86,14 @@ interface IndentApiService {
         @Query("category_name") categoryName: String,
         @Query("current_stock") stock: String = "gt.0"
     ): Response<List<Map<String, Any>>>
+
+    // Indent Reports - with date range and filters
+    @GET("indents")
+    suspend fun getIndentsForReport(
+        @Query("created_at") dateRange: String, // e.g., "gte.2024-01-01&created_at=lte.2024-12-31"
+        @Query("chef_id") chefId: String? = null,
+        @Query("status") status: String? = null,
+        @Query("select") select: String = "*,cuisines!cuisine_id(name),indent_items!inner(*,items!item_id(name)),users!chef_id(full_name),fulfilled_by_user:users!fulfilled_by(full_name)",
+        @Query("order") order: String = "created_at.desc"
+    ): Response<List<Indent>>
 }

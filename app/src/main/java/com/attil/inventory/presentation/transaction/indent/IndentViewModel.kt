@@ -24,6 +24,22 @@ import javax.inject.Inject
 import com.attil.inventory.data.model.transaction.VerifyIndentItemRequest
 import com.attil.inventory.data.model.transaction.VerificationItem
 import com.attil.inventory.data.model.transaction.UpdateIndentItemRequest
+import com.attil.inventory.data.model.reports.IndentReport
+import com.attil.inventory.data.model.reports.IndentReportFilter
+import com.attil.inventory.data.model.reports.IndentReportSummary
+import android.content.Context
+import android.content.Intent
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
+import android.os.Build
+import android.os.Environment
+import android.util.Log
+import android.widget.Toast
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 
 data class IndentUiState(
     val isLoading: Boolean = false,
@@ -57,7 +73,12 @@ data class IndentUiState(
     val currentIndentForVerification: Indent? = null,
     val isVerifying: Boolean = false,
     val verificationError: String? = null,
-    val verificationCompleted: Boolean = false
+    val verificationCompleted: Boolean = false,
+
+    // Indent Report state
+    val indentReport: IndentReport? = null,
+    val isLoadingReport: Boolean = false,
+    val reportError: String? = null
 )
 
 data class FulfillmentItem(
@@ -836,5 +857,342 @@ class IndentViewModel @Inject constructor(
 
     private fun getCurrentDate(): String {
         return java.time.LocalDate.now().toString()
+    }
+
+    // ========== INDENT REPORT FUNCTIONS ==========
+
+    fun loadIndentReport(startDate: String, endDate: String, status: String?, chefId: String?) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingReport = true, reportError = null)
+
+            try {
+                val filter = IndentReportFilter(
+                    startDate = startDate,
+                    endDate = endDate,
+                    status = status,
+                    chefId = chefId
+                )
+
+                repository.getIndentsForReport(filter).collect { result ->
+                    result.fold(
+                        onSuccess = { report ->
+                            _uiState.value = _uiState.value.copy(
+                                indentReport = report,
+                                isLoadingReport = false,
+                                reportError = null
+                            )
+                        },
+                        onFailure = { error ->
+                            _uiState.value = _uiState.value.copy(
+                                isLoadingReport = false,
+                                reportError = error.message ?: "Failed to load indent report"
+                            )
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoadingReport = false,
+                    reportError = e.message ?: "An unexpected error occurred"
+                )
+            }
+        }
+    }
+
+    fun exportIndentReportToPdf(context: Context) {
+        viewModelScope.launch {
+            try {
+                val report = _uiState.value.indentReport ?: return@launch
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Creating PDF...", Toast.LENGTH_SHORT).show()
+                }
+
+                val fileName = "Indent_Report_${report.filter.startDate}_to_${report.filter.endDate}.pdf"
+                val file = createIndentPdfReport(context, report, fileName)
+
+                withContext(Dispatchers.Main) {
+                    if (file != null) {
+                        Toast.makeText(context, "PDF saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                        openPdfFile(context, file)
+                    } else {
+                        Toast.makeText(context, "Failed to create PDF", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("IndentViewModel", "Error exporting PDF", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private suspend fun createIndentPdfReport(context: Context, report: IndentReport, fileName: String): File? {
+        return withContext(Dispatchers.IO) {
+            try {
+                Log.d("IndentViewModel", "Creating indent PDF with ${report.totalIndents} indents")
+
+                // File path logic
+                val file = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
+                        ?: File(context.filesDir, "documents")
+                    if (!documentsDir.exists()) documentsDir.mkdirs()
+                    File(documentsDir, fileName)
+                } else {
+                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                    File(downloadsDir, fileName)
+                }
+
+                val pdfDocument = PdfDocument()
+                val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 Portrait
+                val page = pdfDocument.startPage(pageInfo)
+                val canvas = page.canvas
+                val paint = Paint()
+
+                // Page margins
+                val leftMargin = 30f
+                val rightMargin = 565f
+                val topMargin = 40f
+                val availableWidth = rightMargin - leftMargin
+
+                var yPosition = topMargin
+
+                // Title
+                paint.textSize = 20f
+                paint.isFakeBoldText = true
+                canvas.drawText("Indent Report", leftMargin, yPosition, paint)
+                yPosition += 30f
+
+                // Date Range
+                paint.textSize = 12f
+                paint.isFakeBoldText = false
+                canvas.drawText("Period: ${report.filter.startDate} to ${report.filter.endDate}", leftMargin, yPosition, paint)
+                yPosition += 20f
+
+                // Summary
+                paint.textSize = 10f
+                canvas.drawText("Total Indents: ${report.totalIndents}", leftMargin, yPosition, paint)
+                yPosition += 40f
+
+                // Indent Details
+                report.indents.forEach { indent ->
+                    // Check if we need a new page
+                    if (yPosition > 750f) {
+                        pdfDocument.finishPage(page)
+                        val newPage = pdfDocument.startPage(pageInfo)
+                        yPosition = topMargin
+                    }
+
+                    // Indent Header
+                    paint.textSize = 12f
+                    paint.isFakeBoldText = true
+                    canvas.drawText("Chef: ${indent.chefName}", leftMargin, yPosition, paint)
+                    yPosition += 18f
+
+                    paint.textSize = 10f
+                    paint.isFakeBoldText = false
+                    canvas.drawText("Cuisine: ${indent.cuisineName} | Purpose: ${indent.purpose}", leftMargin, yPosition, paint)
+                    yPosition += 15f
+
+                    canvas.drawText("Required: ${indent.requiredDate} ${indent.requiredTime}", leftMargin, yPosition, paint)
+                    yPosition += 15f
+
+                    canvas.drawText("Status: ${indent.status} | Priority: ${indent.priority}", leftMargin, yPosition, paint)
+                    yPosition += 15f
+
+                    // Statistics
+                    val stats = "Items: ${indent.totalItems} | Fulfilled: ${indent.fulfilledItems} | " +
+                            "Verified: ${indent.verifiedItems} | Rejected: ${indent.rejectedItems}"
+                    canvas.drawText(stats, leftMargin, yPosition, paint)
+                    yPosition += 15f
+
+                    if (indent.fulfilledBy != null) {
+                        canvas.drawText("Fulfilled by: ${indent.fulfilledBy}", leftMargin, yPosition, paint)
+                        yPosition += 15f
+                    }
+
+                    // Item Details
+                    paint.textSize = 9f
+                    yPosition += 5f
+
+                    indent.items.forEach { item ->
+                        if (yPosition > 750f) {
+                            pdfDocument.finishPage(page)
+                            val newPage = pdfDocument.startPage(pageInfo)
+                            yPosition = topMargin
+                        }
+
+                        val status = when {
+                            item.isRejected -> "❌ Rejected"
+                            item.isVerified -> "✅ Verified"
+                            item.isFulfilled -> "📦 Fulfilled"
+                            else -> "⏳ Pending"
+                        }
+
+                        val itemText = "  • ${item.itemName}: ${item.requestedQuantity} ${item.unitOfMeasure} - $status"
+                        canvas.drawText(itemText, leftMargin + 10f, yPosition, paint)
+                        yPosition += 14f
+                    }
+
+                    yPosition += 10f // Space between indents
+                }
+
+                pdfDocument.finishPage(page)
+                pdfDocument.writeTo(FileOutputStream(file))
+                pdfDocument.close()
+
+                Log.d("IndentViewModel", "PDF created successfully at: ${file.absolutePath}")
+                file
+            } catch (e: Exception) {
+                Log.e("IndentViewModel", "Error creating PDF", e)
+                null
+            }
+        }
+    }
+
+    fun exportIndentReportToCsv(context: Context) {
+        viewModelScope.launch {
+            try {
+                val report = _uiState.value.indentReport ?: return@launch
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Creating CSV...", Toast.LENGTH_SHORT).show()
+                }
+
+                val fileName = "Indent_Report_${report.filter.startDate}_to_${report.filter.endDate}.csv"
+                val file = createIndentCsvReport(context, report, fileName)
+
+                withContext(Dispatchers.Main) {
+                    if (file != null) {
+                        Toast.makeText(context, "CSV saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                        openCsvFile(context, file)
+                    } else {
+                        Toast.makeText(context, "Failed to create CSV", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("IndentViewModel", "Error exporting CSV", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private suspend fun createIndentCsvReport(context: Context, report: IndentReport, fileName: String): File? {
+        return withContext(Dispatchers.IO) {
+            try {
+                Log.d("IndentViewModel", "Creating CSV with ${report.totalIndents} indents")
+
+                val file = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
+                        ?: File(context.filesDir, "documents")
+                    if (!documentsDir.exists()) documentsDir.mkdirs()
+                    File(documentsDir, fileName)
+                } else {
+                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                    File(downloadsDir, fileName)
+                }
+
+                FileOutputStream(file).use { fos ->
+                    // Header
+                    val header = "Indent ID,Chef Name,Cuisine,Required Date,Required Time,Priority,Purpose,Status," +
+                            "Total Items,Fulfilled Items,Verified Items,Rejected Items,Fulfilled By," +
+                            "Item Name,Requested Qty,Fulfilled Qty,Unit,Item Status,Is Fulfilled,Is Verified,Is Rejected\n"
+                    fos.write(header.toByteArray())
+
+                    // Data rows
+                    report.indents.forEach { indent ->
+                        indent.items.forEach { item ->
+                            val row = "${escapeCsv(indent.indentId)}," +
+                                    "${escapeCsv(indent.chefName)}," +
+                                    "${escapeCsv(indent.cuisineName)}," +
+                                    "${escapeCsv(indent.requiredDate)}," +
+                                    "${escapeCsv(indent.requiredTime)}," +
+                                    "${escapeCsv(indent.priority)}," +
+                                    "${escapeCsv(indent.purpose)}," +
+                                    "${escapeCsv(indent.status)}," +
+                                    "${indent.totalItems}," +
+                                    "${indent.fulfilledItems}," +
+                                    "${indent.verifiedItems}," +
+                                    "${indent.rejectedItems}," +
+                                    "${escapeCsv(indent.fulfilledBy ?: "N/A")}," +
+                                    "${escapeCsv(item.itemName)}," +
+                                    "${item.requestedQuantity}," +
+                                    "${item.fulfilledQuantity ?: 0.0}," +
+                                    "${escapeCsv(item.unitOfMeasure)}," +
+                                    "${escapeCsv(item.itemStatus)}," +
+                                    "${item.isFulfilled}," +
+                                    "${item.isVerified}," +
+                                    "${item.isRejected}\n"
+                            fos.write(row.toByteArray())
+                        }
+                    }
+                }
+
+                Log.d("IndentViewModel", "CSV created successfully at: ${file.absolutePath}")
+                file
+            } catch (e: Exception) {
+                Log.e("IndentViewModel", "Error creating CSV", e)
+                null
+            }
+        }
+    }
+
+    private fun escapeCsv(value: String): String {
+        return if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            "\"${value.replace("\"", "\"\"")}\""
+        } else {
+            value
+        }
+    }
+
+    private fun openPdfFile(context: Context, file: File) {
+        try {
+            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+            } else {
+                android.net.Uri.fromFile(file)
+            }
+
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/pdf")
+                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("IndentViewModel", "Error opening PDF", e)
+        }
+    }
+
+    private fun openCsvFile(context: Context, file: File) {
+        try {
+            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+            } else {
+                android.net.Uri.fromFile(file)
+            }
+
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "text/csv")
+                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("IndentViewModel", "Error opening CSV", e)
+        }
     }
 }

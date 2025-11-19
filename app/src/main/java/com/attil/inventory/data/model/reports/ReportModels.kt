@@ -12,7 +12,8 @@ data class ReportFilter(
 // Report Types
 enum class ReportType {
     INWARD,
-    OUTWARD
+    OUTWARD,
+    INDENT
 }
 
 // INWARD REPORT MODELS
@@ -274,7 +275,55 @@ data class VendorPerformanceItem(
     val mostSuppliedItem: String?
 )
 
-// INDENT REPORTS
+// INDENT REPORTS - Comprehensive tracking of fulfillment and verification
+data class IndentReport(
+    val reportDate: String,
+    val filter: IndentReportFilter,
+    val totalIndents: Int,
+    val indents: List<IndentReportSummary>
+)
+
+data class IndentReportFilter(
+    val startDate: String,
+    val endDate: String,
+    val status: String? = null, // null = All, or specific status
+    val chefId: String? = null // For filtering by chef
+)
+
+data class IndentReportSummary(
+    val indentId: String,
+    val chefName: String,
+    val cuisineName: String,
+    val requiredDate: String,
+    val requiredTime: String,
+    val priority: String,
+    val purpose: String,
+    val status: String,
+    val createdAt: String,
+    val fulfilledBy: String?, // Who fulfilled the indent
+    val fulfilledAt: String?,
+    val totalItems: Int,
+    val fulfilledItems: Int,
+    val verifiedItems: Int,
+    val rejectedItems: Int, // Items not received during verification
+    val items: List<IndentReportItemDetail>
+)
+
+data class IndentReportItemDetail(
+    val itemName: String,
+    val requestedQuantity: Double,
+    val approvedQuantity: Double?,
+    val fulfilledQuantity: Double?,
+    val unitOfMeasure: String,
+    val itemStatus: String, // Pending, Approved, Fulfilled
+    val isFulfilled: Boolean, // True if fulfilled_quantity > 0
+    val isVerified: Boolean, // True if is_received = true
+    val isRejected: Boolean, // True if is_received = false
+    val receivedBy: String?, // Who verified the item
+    val receivedAt: String?
+)
+
+// Legacy model - keeping for backward compatibility
 data class IndentStatusItem(
     @SerializedName("indent_id")
     val indentId: String,

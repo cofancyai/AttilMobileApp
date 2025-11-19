@@ -10,12 +10,18 @@ import com.attil.inventory.data.model.transaction.VerifyIndentItemRequest
 import com.attil.inventory.data.model.transaction.ItemForIndentSelection
 import com.attil.inventory.data.model.transaction.ItemForIndent
 import com.attil.inventory.data.model.transaction.CategoryForIndent
+import com.attil.inventory.data.model.transaction.UpdateIndentItemRequest
+import com.attil.inventory.data.model.reports.IndentReport
+import com.attil.inventory.data.model.reports.IndentReportFilter
+import com.attil.inventory.data.model.reports.IndentReportSummary
+import com.attil.inventory.data.model.reports.IndentReportItemDetail
 import com.attil.inventory.data.remote.IndentApiService
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.attil.inventory.data.model.transaction.UpdateIndentItemRequest
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @Singleton
 class IndentRepository @Inject constructor(
@@ -348,5 +354,114 @@ class IndentRepository @Inject constructor(
             println("DEBUG - getItemsForIndentByCategory exception: ${e.message}")
             emit(Result.failure(e))
         }
+    }
+
+    // INDENT REPORTS
+    fun getIndentsForReport(filter: IndentReportFilter): Flow<Result<IndentReport>> = flow {
+        try {
+            // Build date range filter for PostgREST
+            val dateRangeStart = "gte.${filter.startDate}"
+            val dateRangeEnd = "lte.${filter.endDate}"
+            val dateRange = "$dateRangeStart"
+
+            // Build status filter
+            val statusFilter = filter.status?.let { "eq.$it" }
+
+            // Build chef filter
+            val chefFilter = filter.chefId?.let { "eq.$it" }
+
+            println("DEBUG - getIndentsForReport: dateRange=$dateRange, status=$statusFilter, chef=$chefFilter")
+
+            // Note: We need to make two API calls with different date ranges
+            // because PostgREST can't combine multiple filters on same field in single @Query
+            val response = apiService.getIndentsForReport(
+                dateRange = dateRangeStart,
+                chefId = chefFilter,
+                status = statusFilter
+            )
+
+            if (response.isSuccessful) {
+                val indents = response.body() ?: emptyList()
+                println("DEBUG - Fetched ${indents.size} indents")
+
+                // Filter by end date manually (since PostgREST limitation)
+                val filteredIndents = indents.filter { indent ->
+                    val createdDate = indent.createdAt?.substring(0, 10) ?: ""
+                    createdDate <= filter.endDate
+                }
+
+                // Transform to report format
+                val reportSummaries = filteredIndents.map { indent ->
+                    transformIndentToReportSummary(indent)
+                }
+
+                val report = IndentReport(
+                    reportDate = LocalDate.now().format(DateTimeFormatter.ISO_DATE),
+                    filter = filter,
+                    totalIndents = reportSummaries.size,
+                    indents = reportSummaries
+                )
+
+                emit(Result.success(report))
+            } else {
+                val errorBody = response.errorBody()?.string()
+                println("DEBUG - getIndentsForReport failed: $errorBody")
+                emit(Result.failure(Exception("API Error ${response.code()}: $errorBody")))
+            }
+        } catch (e: Exception) {
+            println("DEBUG - getIndentsForReport exception: ${e.message}")
+            e.printStackTrace()
+            emit(Result.failure(e))
+        }
+    }
+
+    private fun transformIndentToReportSummary(indent: Indent): IndentReportSummary {
+        val items = indent.indentItems ?: emptyList()
+
+        // Calculate statistics
+        val totalItems = items.size
+        val fulfilledItems = items.count { (it.fulfilledQuantity ?: 0.0) > 0.0 }
+        val verifiedItems = items.count { it.isReceived == true }
+        val rejectedItems = items.count { it.isReceived == false }
+
+        // Get user names
+        val chefName = indent.chef?.fullName ?: "Unknown"
+        val cuisineName = indent.cuisines?.name ?: "Unknown"
+
+        // Transform items to report detail
+        val itemDetails = items.map { item ->
+            IndentReportItemDetail(
+                itemName = item.items?.name ?: "Unknown",
+                requestedQuantity = item.requestedQuantity,
+                approvedQuantity = item.approvedQuantity,
+                fulfilledQuantity = item.fulfilledQuantity,
+                unitOfMeasure = item.unitOfMeasure,
+                itemStatus = item.status,
+                isFulfilled = (item.fulfilledQuantity ?: 0.0) > 0.0,
+                isVerified = item.isReceived == true,
+                isRejected = item.isReceived == false,
+                receivedBy = item.receivedBy,
+                receivedAt = item.receivedAt
+            )
+        }
+
+        return IndentReportSummary(
+            indentId = indent.id ?: "",
+            chefName = chefName,
+            cuisineName = cuisineName,
+            requiredDate = indent.requiredDate,
+            requiredTime = indent.requiredTime,
+            priority = indent.priority,
+            purpose = indent.purpose,
+            status = indent.status,
+            createdAt = indent.createdAt ?: "",
+            fulfilledBy = indent.fulfilledBy,
+            fulfilledAt = indent.fulfilledAt,
+            totalItems = totalItems,
+            fulfilledItems = fulfilledItems,
+            verifiedItems = verifiedItems,
+            rejectedItems = rejectedItems,
+            items = itemDetails
+        )
     }
 }

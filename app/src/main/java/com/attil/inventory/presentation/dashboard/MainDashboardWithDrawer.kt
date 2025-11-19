@@ -35,6 +35,7 @@ import com.attil.inventory.presentation.screen.master.RoleManagementScreen
 import com.attil.inventory.presentation.screen.master.UserManagementScreen
 import com.attil.inventory.presentation.reports.InventoryReportsScreen
 import com.attil.inventory.presentation.reports.ReportsMainScreen
+import com.attil.inventory.presentation.reports.IndentReportsScreen
 import com.attil.inventory.data.model.reports.ReportType
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -262,6 +263,7 @@ fun MainDashboardWithDrawer(
                                     currentScreen = when(reportType) {
                                         ReportType.INWARD -> "inward_report"
                                         ReportType.OUTWARD -> "outward_report"
+                                        ReportType.INDENT -> "indent_report"
                                     }
                                 }
                             )
@@ -283,6 +285,15 @@ fun MainDashboardWithDrawer(
                         if (userPermissions.contains("inventory_reports")) {
                             InventoryReportsScreen(
                                 reportType = ReportType.OUTWARD,
+                                onBackClick = { currentScreen = "inventory_reports" }
+                            )
+                        } else {
+                            UnauthorizedScreen(onBackClick = { currentScreen = "dashboard" })
+                        }
+                    }
+                    "indent_report" -> {
+                        if (userPermissions.contains("inventory_reports")) {
+                            IndentReportsScreen(
                                 onBackClick = { currentScreen = "inventory_reports" }
                             )
                         } else {
