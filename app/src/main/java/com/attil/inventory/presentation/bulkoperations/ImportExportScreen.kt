@@ -316,6 +316,7 @@ fun ImportExportScreen(
                                 "Racks" to "RACKS",
                                 "Items" to "ITEMS",
                                 "Current Stock" to "CURRENT_STOCK",
+                                "Items by Rack" to "ITEMS_BY_RACK",
                                 "Inward Transactions" to "INWARD_TRANSACTIONS",
                                 "Outward Transactions" to "OUTWARD_TRANSACTIONS"
                             ),

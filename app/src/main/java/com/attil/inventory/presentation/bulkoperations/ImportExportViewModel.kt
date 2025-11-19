@@ -857,6 +857,15 @@ class ImportExportViewModel @Inject constructor(
                         }
                         ExcelUtils.createExcelFile(context, outputStream, "Current Stock", headers, data)
                     }
+                    "ITEMS_BY_RACK" -> {
+                        // For Android 10+, we need to use a temporary file approach
+                        val tempFile = File.createTempFile("items_by_rack_", ".xlsx", context.cacheDir)
+                        exportItemsByRack(context, tempFile)
+                        tempFile.inputStream().use { input ->
+                            input.copyTo(outputStream)
+                        }
+                        tempFile.delete()
+                    }
                     "INWARD_TRANSACTIONS" -> {
                         val result = inwardRepository.getAllInwardItems().first()
                         val inwardItems = result.getOrThrow()
@@ -893,6 +902,7 @@ class ImportExportViewModel @Inject constructor(
                 "RACKS" -> exportRacks(context, file)
                 "ITEMS" -> exportItems(context, file)
                 "CURRENT_STOCK" -> exportCurrentStock(context, file)
+                "ITEMS_BY_RACK" -> exportItemsByRack(context, file)
                 "INWARD_TRANSACTIONS" -> exportInwardTransactions(context, file)
                 else -> {
                     ExcelUtils.createExcelFile(context, outputStream, "Export", listOf("Message"), listOf(listOf("Not implemented yet")))
@@ -1158,6 +1168,86 @@ class ImportExportViewModel @Inject constructor(
                 "Outward Transactions",
                 listOf("Not implemented yet"),
                 emptyList()
+            )
+        }
+    }
+
+    private suspend fun exportItemsByRack(context: Context, file: File) {
+        // Fetch all necessary data
+        val racks = rackRepository.getAllRacks().first().getOrThrow()
+        val items = itemRepository.getAllItems().first().getOrThrow()
+        val categories = categoryRepository.getAllCategories().first().getOrThrow()
+        val godowns = godownRepository.getAllGodowns().first().getOrThrow()
+        val currentStocks = currentStockRepository.getAllCurrentStocks().first().getOrThrow()
+
+        // Create mapping for lookups
+        val categoryMap = categories.associate { it.id to it.name }
+        val godownMap = godowns.associate { it.id to it.name }
+        val rackMap = racks.associate { it.id to it.name }
+        val stockMap = currentStocks.associate { it.itemName to it.currentStock }
+
+        // Headers for the export
+        val headers = listOf(
+            "Rack Name",
+            "Godown Name",
+            "Item Name",
+            "Category Name",
+            "Unit of Measure",
+            "Minimum Stock Level",
+            "Current Stock",
+            "Is Active"
+        )
+
+        // Group items by rack and create data rows
+        val data = mutableListOf<List<Any>>()
+
+        // Sort racks by godown and then by rack name for better organization
+        val sortedRacks = racks.sortedWith(compareBy({ godownMap[it.godownId] ?: "" }, { it.name }))
+
+        sortedRacks.forEach { rack ->
+            // Find all items for this rack
+            val rackItems = items.filter { it.rackId == rack.id }.sortedBy { it.name }
+
+            rackItems.forEach { item ->
+                data.add(
+                    listOf(
+                        rack.name,
+                        godownMap[rack.godownId] ?: "",
+                        item.name,
+                        categoryMap[item.categoryId] ?: "",
+                        item.unitOfMeasure,
+                        item.minimumStockLevel,
+                        stockMap[item.name] ?: 0.0,
+                        item.isActive
+                    )
+                )
+            }
+        }
+
+        // Also include items without a rack at the end
+        val unassignedItems = items.filter { it.rackId == null }.sortedBy { it.name }
+        unassignedItems.forEach { item ->
+            data.add(
+                listOf(
+                    "UNASSIGNED",
+                    if (item.godownId != null) godownMap[item.godownId] ?: "" else "",
+                    item.name,
+                    categoryMap[item.categoryId] ?: "",
+                    item.unitOfMeasure,
+                    item.minimumStockLevel,
+                    stockMap[item.name] ?: 0.0,
+                    item.isActive
+                )
+            )
+        }
+
+        file.outputStream().use { outputStream ->
+            ExcelUtils.createExcelFile(
+                context,
+                outputStream,
+                "Items by Rack",
+                headers,
+                data
             )
         }
     }
