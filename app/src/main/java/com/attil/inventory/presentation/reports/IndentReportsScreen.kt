@@ -390,12 +390,12 @@ fun IndentReportCard(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     LinearProgressIndicator(
-                        progress = { fulfillmentProgress },
+                        progress = fulfillmentProgress,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(8.dp),
                         color = Color(0xFF4CAF50),
-                        trackColor = Color(0xFFE0E0E0),
+                        trackColor = Color(0xFFE0E0E0)
                     )
                 }
             }
