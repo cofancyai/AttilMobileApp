@@ -1130,18 +1130,96 @@ class ImportExportViewModel @Inject constructor(
         }
     }
 
-    fun downloadTemplate(context: Context, filename: String) {
-        // TODO: Implement template download from assets
+    fun downloadTemplate(context: Context, templateType: String) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(
-                lastResult = ImportResult(
-                    success = false,
-                    totalRecords = 0,
-                    successfulRecords = 0,
-                    failedRecords = 0,
-                    message = "Template download not yet implemented. Please use the templates in the Excel folder."
+            try {
+                _uiState.value = _uiState.value.copy(isProcessing = true)
+
+                val fileName = "${templateType.lowercase()}_template.xlsx"
+                val headers = getTemplateHeaders(templateType)
+
+                val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    saveTemplateToDownloads(context, fileName, templateType, headers)
+                } else {
+                    saveTemplateToExternalStorage(context, fileName, templateType, headers)
+                }
+
+                // Open the file
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+
+                _uiState.value = _uiState.value.copy(
+                    isProcessing = false,
+                    lastResult = ImportResult(
+                        success = true,
+                        totalRecords = 0,
+                        successfulRecords = 0,
+                        failedRecords = 0,
+                        message = "Template downloaded successfully: $fileName"
+                    )
                 )
-            )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isProcessing = false,
+                    lastResult = ImportResult(
+                        success = false,
+                        totalRecords = 0,
+                        successfulRecords = 0,
+                        failedRecords = 0,
+                        message = "Failed to download template: ${e.message}"
+                    )
+                )
+            }
         }
+    }
+
+    private fun getTemplateHeaders(templateType: String): List<String> {
+        return when (templateType) {
+            "GODOWNS" -> listOf("name", "description", "location")
+            "CATEGORIES" -> listOf("name", "description")
+            "CUISINES" -> listOf("name", "description")
+            "VENDORS" -> listOf("name", "address", "contact_number", "email")
+            "USAGE" -> listOf("name", "description")
+            "RACKS" -> listOf("name", "description", "godown_id")
+            "ITEMS" -> listOf("name", "category_id", "godown_id", "rack_id", "unit_of_measure", "minimum_stock_level", "is_active")
+            "INITIAL_STOCK" -> listOf("item_id", "vendor_name", "vendor_contact", "vendor_address", "purchase_date", "inward_quantity", "price_per_unit", "price_without_gst", "gst_percentage", "price_with_gst", "bill_number", "expiry_date", "cuisine_id")
+            "INWARD_TRANSACTIONS" -> listOf("item_id", "vendor_name", "vendor_contact", "vendor_address", "purchase_date", "inward_quantity", "price_per_unit", "price_without_gst", "gst_percentage", "price_with_gst", "bill_number", "expiry_date", "cuisine_id")
+            else -> listOf("Invalid template type")
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private suspend fun saveTemplateToDownloads(context: Context, fileName: String, templateType: String, headers: List<String>): Uri {
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        }
+
+        val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+            ?: throw Exception("Failed to create file in Downloads")
+
+        context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+            val sheetName = templateType.split("_").joinToString(" ") { it.lowercase().replaceFirstChar { c -> c.uppercase() } }
+            ExcelUtils.createExcelFile(context, outputStream, sheetName, headers, emptyList())
+        } ?: throw Exception("Failed to open output stream")
+
+        return uri
+    }
+
+    private suspend fun saveTemplateToExternalStorage(context: Context, fileName: String, templateType: String, headers: List<String>): Uri {
+        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val file = File(downloadsDir, fileName)
+
+        file.outputStream().use { outputStream ->
+            val sheetName = templateType.split("_").joinToString(" ") { it.lowercase().replaceFirstChar { c -> c.uppercase() } }
+            ExcelUtils.createExcelFile(context, outputStream, sheetName, headers, emptyList())
+        }
+
+        return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     }
 }
