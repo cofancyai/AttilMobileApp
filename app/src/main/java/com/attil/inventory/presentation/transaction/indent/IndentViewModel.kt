@@ -947,8 +947,8 @@ class IndentViewModel @Inject constructor(
 
                 val pdfDocument = PdfDocument()
                 val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 Portrait
-                val page = pdfDocument.startPage(pageInfo)
-                val canvas = page.canvas
+                var page = pdfDocument.startPage(pageInfo)
+                var canvas = page.canvas
                 val paint = Paint()
 
                 // Page margins
@@ -981,7 +981,8 @@ class IndentViewModel @Inject constructor(
                     // Check if we need a new page
                     if (yPosition > 750f) {
                         pdfDocument.finishPage(page)
-                        val newPage = pdfDocument.startPage(pageInfo)
+                        page = pdfDocument.startPage(pageInfo)
+                        canvas = page.canvas
                         yPosition = topMargin
                     }
 
@@ -1022,7 +1023,8 @@ class IndentViewModel @Inject constructor(
                     indent.items.forEach { item ->
                         if (yPosition > 750f) {
                             pdfDocument.finishPage(page)
-                            val newPage = pdfDocument.startPage(pageInfo)
+                            page = pdfDocument.startPage(pageInfo)
+                            canvas = page.canvas
                             yPosition = topMargin
                         }
 

@@ -230,7 +230,7 @@ fun MainDashboardWithDrawer(
                     "indent_fulfillment" -> {
                         if (userPermissions.contains("indent_fulfillment")) {
                             IndentFulfillmentScreen(
-                                onBackClick = { currentScreen = "indent_management" },
+                                onBackClick = { currentScreen = "dashboard" },
                                 currentUserId = currentUserId
                             )
                         } else {
