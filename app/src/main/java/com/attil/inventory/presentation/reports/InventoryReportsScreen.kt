@@ -92,6 +92,7 @@ fun InventoryReportsScreen(
                             text = when (reportType) {
                                 ReportType.INWARD -> "Inward Report"
                                 ReportType.OUTWARD -> "Outward Report"
+                                ReportType.INDENT -> "Indent Report"
                             },
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Bold,
@@ -101,6 +102,7 @@ fun InventoryReportsScreen(
                             text = when (reportType) {
                                 ReportType.INWARD -> "Track inventory purchases and receipts"
                                 ReportType.OUTWARD -> "Monitor inventory consumption and usage with filters"
+                                ReportType.INDENT -> "Track indent fulfillment and verification status"
                             },
                             fontSize = 14.sp,
                             color = Color(0xFF666666)
