@@ -1009,7 +1009,9 @@ class IndentViewModel @Inject constructor(
                     yPosition += 15f
 
                     if (indent.fulfilledBy != null) {
-                        canvas.drawText("Fulfilled by: ${indent.fulfilledBy}", leftMargin, yPosition, paint)
+                        // Check if fulfilledBy is a UUID (contains hyphens) - if so, show N/A
+                        val displayName = if (indent.fulfilledBy.contains("-")) "N/A" else indent.fulfilledBy
+                        canvas.drawText("Fulfilled by: $displayName", leftMargin, yPosition, paint)
                         yPosition += 15f
                     }
 
@@ -1025,13 +1027,13 @@ class IndentViewModel @Inject constructor(
                         }
 
                         val status = when {
-                            item.isRejected -> "❌ Rejected"
-                            item.isVerified -> "✅ Verified"
-                            item.isFulfilled -> "📦 Fulfilled"
-                            else -> "⏳ Pending"
+                            item.isRejected -> "[X] Rejected"
+                            item.isVerified -> "[OK] Verified"
+                            item.isFulfilled -> "[*] Fulfilled"
+                            else -> "[ ] Pending"
                         }
 
-                        val itemText = "  • ${item.itemName}: ${item.requestedQuantity} ${item.unitOfMeasure} - $status"
+                        val itemText = "  - ${item.itemName}: ${item.requestedQuantity} ${item.unitOfMeasure} - $status"
                         canvas.drawText(itemText, leftMargin + 10f, yPosition, paint)
                         yPosition += 14f
                     }
@@ -1107,6 +1109,13 @@ class IndentViewModel @Inject constructor(
                     // Data rows
                     report.indents.forEach { indent ->
                         indent.items.forEach { item ->
+                            // Check if fulfilledBy is a UUID (contains hyphens) - if so, show N/A
+                            val fulfilledByDisplay = when {
+                                indent.fulfilledBy == null -> "N/A"
+                                indent.fulfilledBy.contains("-") -> "N/A"
+                                else -> indent.fulfilledBy
+                            }
+
                             val row = "${escapeCsv(indent.indentId)}," +
                                     "${escapeCsv(indent.chefName)}," +
                                     "${escapeCsv(indent.cuisineName)}," +
@@ -1119,7 +1128,7 @@ class IndentViewModel @Inject constructor(
                                     "${indent.fulfilledItems}," +
                                     "${indent.verifiedItems}," +
                                     "${indent.rejectedItems}," +
-                                    "${escapeCsv(indent.fulfilledBy ?: "N/A")}," +
+                                    "${escapeCsv(fulfilledByDisplay)}," +
                                     "${escapeCsv(item.itemName)}," +
                                     "${item.requestedQuantity}," +
                                     "${item.fulfilledQuantity ?: 0.0}," +

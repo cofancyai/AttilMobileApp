@@ -403,8 +403,10 @@ fun IndentReportCard(
             // Fulfilled By
             if (indent.fulfilledBy != null) {
                 Spacer(modifier = Modifier.height(8.dp))
+                // Check if fulfilledBy is a UUID (contains hyphens) - if so, show N/A
+                val displayName = if (indent.fulfilledBy.contains("-")) "N/A" else indent.fulfilledBy
                 Text(
-                    text = "Fulfilled by: ${indent.fulfilledBy}",
+                    text = "Fulfilled by: $displayName",
                     fontSize = 12.sp,
                     color = Color(0xFF666666),
                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
