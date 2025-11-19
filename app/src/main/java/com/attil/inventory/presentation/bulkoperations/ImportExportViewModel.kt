@@ -96,10 +96,15 @@ class ImportExportViewModel @Inject constructor(
 
                 // Process import based on type
                 val result = when (importType) {
+                    "GODOWNS" -> importGodowns(excelData)
                     "CATEGORIES" -> importCategories(excelData)
+                    "CUISINES" -> importCuisines(excelData)
+                    "VENDORS" -> importVendors(excelData)
+                    "USAGE" -> importUsage(excelData)
                     "RACKS" -> importRacks(excelData)
                     "ITEMS" -> importItems(excelData)
                     "INITIAL_STOCK" -> importInitialStock(excelData)
+                    "INWARD_TRANSACTIONS" -> importInwardTransactions(excelData)
                     else -> ImportResult(
                         success = false,
                         totalRecords = 0,
@@ -131,24 +136,97 @@ class ImportExportViewModel @Inject constructor(
 
     private fun getExpectedHeaders(importType: String): List<String> {
         return when (importType) {
+            "GODOWNS" -> listOf("name", "description", "location")
             "CATEGORIES" -> listOf("name", "description")
+            "CUISINES" -> listOf("name", "description")
+            "VENDORS" -> listOf("name", "address", "contact_number", "email")
+            "USAGE" -> listOf("name", "description")
             "RACKS" -> listOf("name", "description", "godown_name")
             "ITEMS" -> listOf("name", "category_name", "godown_name", "rack_name", "unit_of_measure", "minimum_stock_level")
-            "INITIAL_STOCK" -> listOf("item_name", "vendor_name", "purchase_date", "inward_quantity", "price_per_unit", "price_without_gst", "gst_percentage", "price_with_gst")
+            "INITIAL_STOCK" -> listOf("item_name", "vendor_name", "purchase_date", "inward_quantity", "price_per_unit", "price_without_gst", "gst_percentage", "price_with_gst", "bill_number")
+            "INWARD_TRANSACTIONS" -> listOf("item_name", "vendor_name", "purchase_date", "inward_quantity", "price_per_unit", "price_without_gst", "gst_percentage", "price_with_gst", "bill_number")
             else -> emptyList()
         }
+    }
+
+    // IMPORT FUNCTIONS WITH UPPERCASE NORMALIZATION AND DUPLICATE CHECKING
+
+    private suspend fun importGodowns(excelData: List<Map<String, String>>): ImportResult {
+        val errors = mutableListOf<String>()
+        var successCount = 0
+        var skippedCount = 0
+
+        // Fetch existing godowns to check for duplicates
+        val existingResult = godownRepository.getAllGodowns().first()
+        val existing = existingResult.getOrNull() ?: emptyList()
+        val existingNames = existing.map { it.name.uppercase() }.toSet()
+
+        excelData.forEachIndexed { index, row ->
+            try {
+                val name = row["name"]?.trim() ?: throw Exception("Missing name")
+                val nameUpper = name.uppercase()
+
+                // Check for duplicate
+                if (existingNames.contains(nameUpper)) {
+                    skippedCount++
+                    return@forEachIndexed
+                }
+
+                val description = row["description"]?.trim()
+                val location = row["location"]?.trim()
+
+                val request = CreateGodownRequest(nameUpper, description, location)
+                val result = godownRepository.createGodown(request).first()
+
+                if (result.isFailure) {
+                    throw Exception(result.exceptionOrNull()?.message ?: "Unknown error")
+                }
+
+                successCount++
+            } catch (e: Exception) {
+                errors.add("Row ${index + 2}: ${e.message}")
+            }
+        }
+
+        return ImportResult(
+            success = errors.isEmpty(),
+            totalRecords = excelData.size,
+            successfulRecords = successCount,
+            failedRecords = errors.size,
+            skippedDuplicates = skippedCount,
+            errors = errors,
+            message = when {
+                errors.isEmpty() && skippedCount == 0 -> "Successfully imported $successCount godowns"
+                errors.isEmpty() && skippedCount > 0 -> "Imported $successCount godowns, skipped $skippedCount duplicates"
+                else -> "Imported $successCount out of ${excelData.size} godowns, skipped $skippedCount duplicates"
+            }
+        )
     }
 
     private suspend fun importCategories(excelData: List<Map<String, String>>): ImportResult {
         val errors = mutableListOf<String>()
         var successCount = 0
+        var skippedCount = 0
+
+        // Fetch existing categories to check for duplicates
+        val existingResult = categoryRepository.getAllCategories().first()
+        val existing = existingResult.getOrNull() ?: emptyList()
+        val existingNames = existing.map { it.name.uppercase() }.toSet()
 
         excelData.forEachIndexed { index, row ->
             try {
-                val name = row["name"] ?: throw Exception("Missing name")
-                val description = row["description"]
+                val name = row["name"]?.trim() ?: throw Exception("Missing name")
+                val nameUpper = name.uppercase()
 
-                val request = CreateCategoryRequest(name, description)
+                // Check for duplicate
+                if (existingNames.contains(nameUpper)) {
+                    skippedCount++
+                    return@forEachIndexed
+                }
+
+                val description = row["description"]?.trim()
+
+                val request = CreateCategoryRequest(nameUpper, description)
                 val result = categoryRepository.createCategory(request).first()
 
                 if (result.isFailure) {
@@ -166,17 +244,177 @@ class ImportExportViewModel @Inject constructor(
             totalRecords = excelData.size,
             successfulRecords = successCount,
             failedRecords = errors.size,
+            skippedDuplicates = skippedCount,
             errors = errors,
-            message = if (errors.isEmpty()) "Successfully imported $successCount categories"
-            else "Imported $successCount out of ${excelData.size} categories"
+            message = when {
+                errors.isEmpty() && skippedCount == 0 -> "Successfully imported $successCount categories"
+                errors.isEmpty() && skippedCount > 0 -> "Imported $successCount categories, skipped $skippedCount duplicates"
+                else -> "Imported $successCount out of ${excelData.size} categories, skipped $skippedCount duplicates"
+            }
+        )
+    }
+
+    private suspend fun importCuisines(excelData: List<Map<String, String>>): ImportResult {
+        val errors = mutableListOf<String>()
+        var successCount = 0
+        var skippedCount = 0
+
+        // Fetch existing cuisines to check for duplicates
+        val existingResult = cuisineRepository.getAllCuisines().first()
+        val existing = existingResult.getOrNull() ?: emptyList()
+        val existingNames = existing.map { it.name.uppercase() }.toSet()
+
+        excelData.forEachIndexed { index, row ->
+            try {
+                val name = row["name"]?.trim() ?: throw Exception("Missing name")
+                val nameUpper = name.uppercase()
+
+                // Check for duplicate
+                if (existingNames.contains(nameUpper)) {
+                    skippedCount++
+                    return@forEachIndexed
+                }
+
+                val description = row["description"]?.trim()
+
+                val request = CreateCuisineRequest(nameUpper, description)
+                val result = cuisineRepository.createCuisine(request).first()
+
+                if (result.isFailure) {
+                    throw Exception(result.exceptionOrNull()?.message ?: "Unknown error")
+                }
+
+                successCount++
+            } catch (e: Exception) {
+                errors.add("Row ${index + 2}: ${e.message}")
+            }
+        }
+
+        return ImportResult(
+            success = errors.isEmpty(),
+            totalRecords = excelData.size,
+            successfulRecords = successCount,
+            failedRecords = errors.size,
+            skippedDuplicates = skippedCount,
+            errors = errors,
+            message = when {
+                errors.isEmpty() && skippedCount == 0 -> "Successfully imported $successCount cuisines"
+                errors.isEmpty() && skippedCount > 0 -> "Imported $successCount cuisines, skipped $skippedCount duplicates"
+                else -> "Imported $successCount out of ${excelData.size} cuisines, skipped $skippedCount duplicates"
+            }
+        )
+    }
+
+    private suspend fun importVendors(excelData: List<Map<String, String>>): ImportResult {
+        val errors = mutableListOf<String>()
+        var successCount = 0
+        var skippedCount = 0
+
+        // Fetch existing vendors to check for duplicates
+        val existingResult = vendorRepository.getAllVendors().first()
+        val existing = existingResult.getOrNull() ?: emptyList()
+        val existingNames = existing.map { it.name.uppercase() }.toSet()
+
+        excelData.forEachIndexed { index, row ->
+            try {
+                val name = row["name"]?.trim() ?: throw Exception("Missing name")
+                val nameUpper = name.uppercase()
+
+                // Check for duplicate
+                if (existingNames.contains(nameUpper)) {
+                    skippedCount++
+                    return@forEachIndexed
+                }
+
+                val address = row["address"]?.trim()
+                val contactNumber = row["contact_number"]?.trim()
+                val email = row["email"]?.trim()
+
+                val request = CreateVendorRequest(nameUpper, address, contactNumber, email)
+                val result = vendorRepository.createVendor(request).first()
+
+                if (result.isFailure) {
+                    throw Exception(result.exceptionOrNull()?.message ?: "Unknown error")
+                }
+
+                successCount++
+            } catch (e: Exception) {
+                errors.add("Row ${index + 2}: ${e.message}")
+            }
+        }
+
+        return ImportResult(
+            success = errors.isEmpty(),
+            totalRecords = excelData.size,
+            successfulRecords = successCount,
+            failedRecords = errors.size,
+            skippedDuplicates = skippedCount,
+            errors = errors,
+            message = when {
+                errors.isEmpty() && skippedCount == 0 -> "Successfully imported $successCount vendors"
+                errors.isEmpty() && skippedCount > 0 -> "Imported $successCount vendors, skipped $skippedCount duplicates"
+                else -> "Imported $successCount out of ${excelData.size} vendors, skipped $skippedCount duplicates"
+            }
+        )
+    }
+
+    private suspend fun importUsage(excelData: List<Map<String, String>>): ImportResult {
+        val errors = mutableListOf<String>()
+        var successCount = 0
+        var skippedCount = 0
+
+        // Fetch existing usages to check for duplicates
+        val existingResult = usageRepository.getAllUsages().first()
+        val existing = existingResult.getOrNull() ?: emptyList()
+        val existingNames = existing.map { it.name.uppercase() }.toSet()
+
+        excelData.forEachIndexed { index, row ->
+            try {
+                val name = row["name"]?.trim() ?: throw Exception("Missing name")
+                val nameUpper = name.uppercase()
+
+                // Check for duplicate
+                if (existingNames.contains(nameUpper)) {
+                    skippedCount++
+                    return@forEachIndexed
+                }
+
+                val description = row["description"]?.trim()
+
+                val request = CreateUsageRequest(nameUpper, description)
+                val result = usageRepository.createUsage(request).first()
+
+                if (result.isFailure) {
+                    throw Exception(result.exceptionOrNull()?.message ?: "Unknown error")
+                }
+
+                successCount++
+            } catch (e: Exception) {
+                errors.add("Row ${index + 2}: ${e.message}")
+            }
+        }
+
+        return ImportResult(
+            success = errors.isEmpty(),
+            totalRecords = excelData.size,
+            successfulRecords = successCount,
+            failedRecords = errors.size,
+            skippedDuplicates = skippedCount,
+            errors = errors,
+            message = when {
+                errors.isEmpty() && skippedCount == 0 -> "Successfully imported $successCount usage types"
+                errors.isEmpty() && skippedCount > 0 -> "Imported $successCount usage types, skipped $skippedCount duplicates"
+                else -> "Imported $successCount out of ${excelData.size} usage types, skipped $skippedCount duplicates"
+            }
         )
     }
 
     private suspend fun importRacks(excelData: List<Map<String, String>>): ImportResult {
         val errors = mutableListOf<String>()
         var successCount = 0
+        var skippedCount = 0
 
-        // Fetch all racks with godowns and create name-to-ID mapping
+        // Fetch all racks and godowns
         val racksResult = rackRepository.getAllRacks().first()
         if (racksResult.isFailure) {
             return ImportResult(
@@ -190,20 +428,31 @@ class ImportExportViewModel @Inject constructor(
         }
 
         val racks = racksResult.getOrNull() ?: emptyList()
+        // Create duplicate check map: "RACKNAME_GODOWNID" to detect duplicates
+        val existingRackKeys = racks.map { "${it.name.uppercase()}_${it.godownId}" }.toSet()
+
         val godowns = racks.mapNotNull { it.godowns }.distinctBy { it.id }
-        val godownMap = godowns.associate { it.name.trim().lowercase() to (it.id ?: "") }
+        val godownMap = godowns.associate { it.name.uppercase() to (it.id ?: "") }
 
         excelData.forEachIndexed { index, row ->
             try {
-                val name = row["name"] ?: throw Exception("Missing name")
-                val description = row["description"]
-                val godownName = row["godown_name"] ?: throw Exception("Missing godown_name")
+                val name = row["name"]?.trim() ?: throw Exception("Missing name")
+                val nameUpper = name.uppercase()
+                val description = row["description"]?.trim()
+                val godownName = row["godown_name"]?.trim() ?: throw Exception("Missing godown_name")
 
-                // Lookup godown ID by name
-                val godownId = godownMap[godownName.trim().lowercase()]
+                // Lookup godown ID by name (case-insensitive)
+                val godownId = godownMap[godownName.uppercase()]
                     ?: throw Exception("Godown '$godownName' not found. Please create it first.")
 
-                val request = CreateRackRequest(name, description, godownId)
+                // Check for duplicate (rack name + godown combination)
+                val rackKey = "${nameUpper}_${godownId}"
+                if (existingRackKeys.contains(rackKey)) {
+                    skippedCount++
+                    return@forEachIndexed
+                }
+
+                val request = CreateRackRequest(nameUpper, description, godownId)
                 val result = rackRepository.createRack(request).first()
 
                 if (result.isFailure) {
@@ -221,15 +470,25 @@ class ImportExportViewModel @Inject constructor(
             totalRecords = excelData.size,
             successfulRecords = successCount,
             failedRecords = errors.size,
+            skippedDuplicates = skippedCount,
             errors = errors,
-            message = if (errors.isEmpty()) "Successfully imported $successCount racks"
-            else "Imported $successCount out of ${excelData.size} racks"
+            message = when {
+                errors.isEmpty() && skippedCount == 0 -> "Successfully imported $successCount racks"
+                errors.isEmpty() && skippedCount > 0 -> "Imported $successCount racks, skipped $skippedCount duplicates"
+                else -> "Imported $successCount out of ${excelData.size} racks, skipped $skippedCount duplicates"
+            }
         )
     }
 
     private suspend fun importItems(excelData: List<Map<String, String>>): ImportResult {
         val errors = mutableListOf<String>()
         var successCount = 0
+        var skippedCount = 0
+
+        // Fetch existing items
+        val existingItemsResult = itemRepository.getAllItems().first()
+        val existingItems = existingItemsResult.getOrNull() ?: emptyList()
+        val existingItemNames = existingItems.map { it.name.uppercase() }.toSet()
 
         // Fetch all categories, racks, godowns and create name-to-ID mappings
         val categoriesResult = categoryRepository.getAllCategories().first()
@@ -245,7 +504,7 @@ class ImportExportViewModel @Inject constructor(
         }
 
         val categories = categoriesResult.getOrNull() ?: emptyList()
-        val categoryMap = categories.associate { it.name.trim().lowercase() to (it.id ?: "") }
+        val categoryMap = categories.associate { it.name.uppercase() to (it.id ?: "") }
 
         val racksResult = rackRepository.getAllRacks().first()
         if (racksResult.isFailure) {
@@ -260,42 +519,50 @@ class ImportExportViewModel @Inject constructor(
         }
 
         val racks = racksResult.getOrNull() ?: emptyList()
-        val rackMap = racks.associate { it.name.trim().lowercase() to (it.id ?: "") }
+        val rackMap = racks.associate { it.name.uppercase() to (it.id ?: "") }
 
         val godowns = racks.mapNotNull { it.godowns }.distinctBy { it.id }
-        val godownMap = godowns.associate { it.name.trim().lowercase() to (it.id ?: "") }
+        val godownMap = godowns.associate { it.name.uppercase() to (it.id ?: "") }
 
         excelData.forEachIndexed { index, row ->
             try {
-                val name = row["name"] ?: throw Exception("Missing name")
-                val categoryName = row["category_name"] ?: throw Exception("Missing category_name")
-                val unitOfMeasure = row["unit_of_measure"] ?: throw Exception("Missing unit_of_measure")
-                val minimumStockLevel = row["minimum_stock_level"]?.toDoubleOrNull() ?: 0.0
-                val godownName = row["godown_name"]
-                val rackName = row["rack_name"]
+                val name = row["name"]?.trim() ?: throw Exception("Missing name")
+                val nameUpper = name.uppercase()
 
-                // Lookup category ID by name (required)
-                val categoryId = categoryMap[categoryName.trim().lowercase()]
+                // Check for duplicate
+                if (existingItemNames.contains(nameUpper)) {
+                    skippedCount++
+                    return@forEachIndexed
+                }
+
+                val categoryName = row["category_name"]?.trim() ?: throw Exception("Missing category_name")
+                val unitOfMeasure = row["unit_of_measure"]?.trim()?.uppercase() ?: throw Exception("Missing unit_of_measure")
+                val minimumStockLevel = row["minimum_stock_level"]?.toDoubleOrNull() ?: 0.0
+                val godownName = row["godown_name"]?.trim()
+                val rackName = row["rack_name"]?.trim()
+
+                // Lookup category ID by name (required, case-insensitive)
+                val categoryId = categoryMap[categoryName.uppercase()]
                     ?: throw Exception("Category '$categoryName' not found. Please import categories first.")
 
-                // Lookup godown ID by name (optional)
+                // Lookup godown ID by name (optional, case-insensitive)
                 val godownId = godownName?.let {
                     if (it.isNotBlank()) {
-                        godownMap[it.trim().lowercase()]
+                        godownMap[it.uppercase()]
                             ?: throw Exception("Godown '$it' not found. Please create it first.")
                     } else null
                 }
 
-                // Lookup rack ID by name (optional)
+                // Lookup rack ID by name (optional, case-insensitive)
                 val rackId = rackName?.let {
                     if (it.isNotBlank()) {
-                        rackMap[it.trim().lowercase()]
+                        rackMap[it.uppercase()]
                             ?: throw Exception("Rack '$it' not found. Please import racks first.")
                     } else null
                 }
 
                 val request = CreateItemRequest(
-                    name = name,
+                    name = nameUpper,
                     categoryId = categoryId,
                     godownId = godownId,
                     rackId = rackId,
@@ -320,15 +587,32 @@ class ImportExportViewModel @Inject constructor(
             totalRecords = excelData.size,
             successfulRecords = successCount,
             failedRecords = errors.size,
+            skippedDuplicates = skippedCount,
             errors = errors,
-            message = if (errors.isEmpty()) "Successfully imported $successCount items"
-            else "Imported $successCount out of ${excelData.size} items"
+            message = when {
+                errors.isEmpty() && skippedCount == 0 -> "Successfully imported $successCount items"
+                errors.isEmpty() && skippedCount > 0 -> "Imported $successCount items, skipped $skippedCount duplicates"
+                else -> "Imported $successCount out of ${excelData.size} items, skipped $skippedCount duplicates"
+            }
         )
     }
 
     private suspend fun importInitialStock(excelData: List<Map<String, String>>): ImportResult {
+        return importInwardTransactions(excelData)
+    }
+
+    private suspend fun importInwardTransactions(excelData: List<Map<String, String>>): ImportResult {
         val errors = mutableListOf<String>()
         var successCount = 0
+        var skippedCount = 0
+
+        // Fetch existing inward items to check for duplicates
+        val existingInwardResult = inwardRepository.getAllInwardItems().first()
+        val existingInward = existingInwardResult.getOrNull() ?: emptyList()
+        // Create duplicate key: "ITEMID_BILLNUMBER_DATE" (bill number can be null, so use "NONE")
+        val existingKeys = existingInward.map {
+            "${it.itemId}_${it.billNumber?.uppercase() ?: "NONE"}_${it.purchaseDate}"
+        }.toSet()
 
         // Fetch all items and create name-to-ID mapping
         val itemsResult = itemRepository.getAllItems().first()
@@ -344,22 +628,30 @@ class ImportExportViewModel @Inject constructor(
         }
 
         val items = itemsResult.getOrNull() ?: emptyList()
-        val itemMap = items.associate { it.name.trim().lowercase() to (it.id ?: "") }
+        val itemMap = items.associate { it.name.uppercase() to (it.id ?: "") }
 
         excelData.forEachIndexed { index, row ->
             try {
-                val itemName = row["item_name"] ?: throw Exception("Missing item_name")
-                val vendorName = row["vendor_name"] ?: "Initial Stock Import"
-                val purchaseDate = row["purchase_date"] ?: throw Exception("Missing purchase_date")
+                val itemName = row["item_name"]?.trim() ?: throw Exception("Missing item_name")
+                val vendorName = row["vendor_name"]?.trim()?.uppercase() ?: "INITIAL STOCK IMPORT"
+                val purchaseDate = row["purchase_date"]?.trim() ?: throw Exception("Missing purchase_date")
                 val inwardQuantity = row["inward_quantity"]?.toDoubleOrNull() ?: throw Exception("Invalid inward_quantity")
                 val pricePerUnit = row["price_per_unit"]?.toDoubleOrNull() ?: 0.0
                 val priceWithoutGst = row["price_without_gst"]?.toDoubleOrNull()
                 val gstPercentage = row["gst_percentage"]?.toDoubleOrNull()
                 val priceWithGst = row["price_with_gst"]?.toDoubleOrNull()
+                val billNumber = row["bill_number"]?.trim()?.uppercase()
 
-                // Lookup item ID by name
-                val itemId = itemMap[itemName.trim().lowercase()]
+                // Lookup item ID by name (case-insensitive)
+                val itemId = itemMap[itemName.uppercase()]
                     ?: throw Exception("Item '$itemName' not found. Please import items first.")
+
+                // Check for duplicate
+                val duplicateKey = "${itemId}_${billNumber ?: "NONE"}_${purchaseDate}"
+                if (existingKeys.contains(duplicateKey)) {
+                    skippedCount++
+                    return@forEachIndexed
+                }
 
                 val request = CreateInwardItemRequest(
                     itemId = itemId,
@@ -372,7 +664,7 @@ class ImportExportViewModel @Inject constructor(
                     priceWithoutGst = priceWithoutGst,
                     gstPercentage = gstPercentage,
                     priceWithGst = priceWithGst,
-                    billNumber = row["bill_number"],
+                    billNumber = billNumber,
                     expiryDate = null,
                     cuisineId = null,
                     createdBy = null
@@ -394,9 +686,13 @@ class ImportExportViewModel @Inject constructor(
             totalRecords = excelData.size,
             successfulRecords = successCount,
             failedRecords = errors.size,
+            skippedDuplicates = skippedCount,
             errors = errors,
-            message = if (errors.isEmpty()) "Successfully imported $successCount inward transactions"
-            else "Imported $successCount out of ${excelData.size} inward transactions"
+            message = when {
+                errors.isEmpty() && skippedCount == 0 -> "Successfully imported $successCount inward transactions"
+                errors.isEmpty() && skippedCount > 0 -> "Imported $successCount inward transactions, skipped $skippedCount duplicates"
+                else -> "Imported $successCount out of ${excelData.size} inward transactions, skipped $skippedCount duplicates"
+            }
         )
     }
 
