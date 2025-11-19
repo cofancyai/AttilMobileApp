@@ -633,6 +633,11 @@ class ImportExportViewModel @Inject constructor(
         val items = itemsResult.getOrNull() ?: emptyList()
         val itemMap = items.associate { it.name.uppercase() to (it.id ?: "") }
 
+        // Fetch all cuisines and create name-to-ID mapping
+        val cuisinesResult = cuisineRepository.getAllCuisines().first()
+        val cuisines = cuisinesResult.getOrNull() ?: emptyList()
+        val cuisineMap = cuisines.associate { it.name.uppercase() to (it.id ?: "") }
+
         excelData.forEachIndexed { index, row ->
             try {
                 val itemName = row["item_name"]?.trim() ?: throw Exception("Missing item_name")
@@ -644,10 +649,19 @@ class ImportExportViewModel @Inject constructor(
                 val gstPercentage = row["gst_percentage"]?.toDoubleOrNull()
                 val priceWithGst = row["price_with_gst"]?.toDoubleOrNull()
                 val billNumber = row["bill_number"]?.trim()?.uppercase()
+                val cuisineName = row["cuisine_name"]?.trim()
 
                 // Lookup item ID by name (case-insensitive)
                 val itemId = itemMap[itemName.uppercase()]
                     ?: throw Exception("Item '$itemName' not found. Please import items first.")
+
+                // Lookup cuisine ID by name (optional, case-insensitive)
+                val cuisineId = cuisineName?.let {
+                    if (it.isNotBlank()) {
+                        cuisineMap[it.uppercase()]
+                            ?: throw Exception("Cuisine '$it' not found. Please import cuisines first.")
+                    } else null
+                }
 
                 // Check for duplicate
                 val duplicateKey = "${itemId}_${billNumber ?: "NONE"}_${purchaseDate}"
@@ -669,7 +683,7 @@ class ImportExportViewModel @Inject constructor(
                     priceWithGst = priceWithGst,
                     billNumber = billNumber,
                     expiryDate = null,
-                    cuisineId = null,
+                    cuisineId = cuisineId,
                     createdBy = null
                 )
                 val result = inwardRepository.createInwardItem(request).first()
@@ -1009,13 +1023,18 @@ class ImportExportViewModel @Inject constructor(
 
     private suspend fun exportRacks(context: Context, file: File) {
         val racks = rackRepository.getAllRacks().first().getOrThrow()
-        val headers = listOf("ID", "Name", "Description", "Godown ID", "Is Active", "Created At")
+
+        // Fetch all godowns to map IDs to names
+        val godowns = godownRepository.getAllGodowns().first().getOrThrow()
+        val godownMap = godowns.associate { it.id to it.name }
+
+        val headers = listOf("ID", "Name", "Description", "Godown Name", "Is Active", "Created At")
         val data = racks.map { rack ->
             listOf(
                 rack.id ?: "",
                 rack.name,
                 rack.description ?: "",
-                rack.godownId,
+                godownMap[rack.godownId] ?: rack.godownId,  // Show name, fallback to ID
                 rack.isActive,
                 rack.createdAt ?: ""
             )
@@ -1034,14 +1053,24 @@ class ImportExportViewModel @Inject constructor(
 
     private suspend fun exportItems(context: Context, file: File) {
         val items = itemRepository.getAllItems().first().getOrThrow()
-        val headers = listOf("ID", "Name", "Category ID", "Godown ID", "Rack ID", "Unit of Measure", "Minimum Stock Level", "Is Active", "Created At")
+
+        // Fetch all related entities to map IDs to names
+        val categories = categoryRepository.getAllCategories().first().getOrThrow()
+        val godowns = godownRepository.getAllGodowns().first().getOrThrow()
+        val racks = rackRepository.getAllRacks().first().getOrThrow()
+
+        val categoryMap = categories.associate { it.id to it.name }
+        val godownMap = godowns.associate { it.id to it.name }
+        val rackMap = racks.associate { it.id to it.name }
+
+        val headers = listOf("ID", "Name", "Category Name", "Godown Name", "Rack Name", "Unit of Measure", "Minimum Stock Level", "Is Active", "Created At")
         val data = items.map { item ->
             listOf(
                 item.id ?: "",
                 item.name,
-                item.categoryId,
-                item.godownId ?: "",
-                item.rackId ?: "",
+                categoryMap[item.categoryId] ?: item.categoryId,  // Show name, fallback to ID
+                if (item.godownId != null) godownMap[item.godownId] ?: item.godownId else "",
+                if (item.rackId != null) rackMap[item.rackId] ?: item.rackId else "",
                 item.unitOfMeasure,
                 item.minimumStockLevel,
                 item.isActive,
@@ -1213,10 +1242,10 @@ class ImportExportViewModel @Inject constructor(
             "CUISINES" -> listOf("name", "description")
             "VENDORS" -> listOf("name", "address", "contact_number", "email")
             "USAGE" -> listOf("name", "description")
-            "RACKS" -> listOf("name", "description", "godown_id")
-            "ITEMS" -> listOf("name", "category_id", "godown_id", "rack_id", "unit_of_measure", "minimum_stock_level", "is_active")
-            "INITIAL_STOCK" -> listOf("item_id", "vendor_name", "vendor_contact", "vendor_address", "purchase_date", "inward_quantity", "price_per_unit", "price_without_gst", "gst_percentage", "price_with_gst", "bill_number", "expiry_date", "cuisine_id")
-            "INWARD_TRANSACTIONS" -> listOf("item_id", "vendor_name", "vendor_contact", "vendor_address", "purchase_date", "inward_quantity", "price_per_unit", "price_without_gst", "gst_percentage", "price_with_gst", "bill_number", "expiry_date", "cuisine_id")
+            "RACKS" -> listOf("name", "description", "godown_name")
+            "ITEMS" -> listOf("name", "category_name", "godown_name", "rack_name", "unit_of_measure", "minimum_stock_level", "is_active")
+            "INITIAL_STOCK" -> listOf("item_name", "vendor_name", "vendor_contact", "vendor_address", "purchase_date", "inward_quantity", "price_per_unit", "price_without_gst", "gst_percentage", "price_with_gst", "bill_number", "expiry_date", "cuisine_name")
+            "INWARD_TRANSACTIONS" -> listOf("item_name", "vendor_name", "vendor_contact", "vendor_address", "purchase_date", "inward_quantity", "price_per_unit", "price_without_gst", "gst_percentage", "price_with_gst", "bill_number", "expiry_date", "cuisine_name")
             else -> listOf("Invalid template type")
         }
     }
