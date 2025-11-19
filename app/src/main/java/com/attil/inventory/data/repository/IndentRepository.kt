@@ -25,7 +25,8 @@ import java.time.format.DateTimeFormatter
 
 @Singleton
 class IndentRepository @Inject constructor(
-    private val apiService: IndentApiService
+    private val apiService: IndentApiService,
+    private val userRepository: com.attil.inventory.data.repository.UserRepository
 ) {
 
     fun getAllIndents(): Flow<Result<List<Indent>>> = flow {
@@ -390,9 +391,21 @@ class IndentRepository @Inject constructor(
                     createdDate <= filter.endDate
                 }
 
+                // Fetch user names for fulfilled_by fields
+                val fulfilledByUserIds = filteredIndents.mapNotNull { it.fulfilledBy }.distinct()
+                val userNamesMap = mutableMapOf<String, String>()
+
+                fulfilledByUserIds.forEach { userId ->
+                    userRepository.getUserById(userId).collect { result ->
+                        result.onSuccess { user ->
+                            user?.let { userNamesMap[userId] = it.fullName }
+                        }
+                    }
+                }
+
                 // Transform to report format
                 val reportSummaries = filteredIndents.map { indent ->
-                    transformIndentToReportSummary(indent)
+                    transformIndentToReportSummary(indent, userNamesMap)
                 }
 
                 val report = IndentReport(
@@ -415,7 +428,7 @@ class IndentRepository @Inject constructor(
         }
     }
 
-    private fun transformIndentToReportSummary(indent: Indent): IndentReportSummary {
+    private fun transformIndentToReportSummary(indent: Indent, userNamesMap: Map<String, String>): IndentReportSummary {
         val items = indent.indentItems ?: emptyList()
 
         // Calculate statistics
@@ -427,6 +440,7 @@ class IndentRepository @Inject constructor(
         // Get user names
         val chefName = indent.chef?.fullName ?: "Unknown"
         val cuisineName = indent.cuisines?.name ?: "Unknown"
+        val fulfilledByName = indent.fulfilledBy?.let { userNamesMap[it] }
 
         // Transform items to report detail
         val itemDetails = items.map { item ->
@@ -455,7 +469,7 @@ class IndentRepository @Inject constructor(
             purpose = indent.purpose,
             status = indent.status,
             createdAt = indent.createdAt ?: "",
-            fulfilledBy = indent.fulfilledBy,
+            fulfilledBy = fulfilledByName,
             fulfilledAt = indent.fulfilledAt,
             totalItems = totalItems,
             fulfilledItems = fulfilledItems,

@@ -1010,33 +1010,80 @@ class IndentViewModel @Inject constructor(
                     yPosition += 15f
 
                     if (indent.fulfilledBy != null) {
-                        // Check if fulfilledBy is a UUID (contains hyphens) - if so, show N/A
-                        val displayName = if (indent.fulfilledBy.contains("-")) "N/A" else indent.fulfilledBy
-                        canvas.drawText("Fulfilled by: $displayName", leftMargin, yPosition, paint)
+                        canvas.drawText("Fulfilled by: ${indent.fulfilledBy}", leftMargin, yPosition, paint)
                         yPosition += 15f
                     }
 
-                    // Item Details
-                    paint.textSize = 9f
-                    yPosition += 5f
+                    // Item Details Table
+                    yPosition += 10f
 
+                    // Table Header
+                    paint.textSize = 8f
+                    paint.isFakeBoldText = true
+
+                    // Column positions
+                    val col1X = leftMargin
+                    val col2X = leftMargin + 250f
+                    val col3X = leftMargin + 340f
+                    val col4X = leftMargin + 430f
+
+                    // Draw table header
+                    if (yPosition > 720f) {
+                        pdfDocument.finishPage(page)
+                        page = pdfDocument.startPage(pageInfo)
+                        canvas = page.canvas
+                        yPosition = topMargin
+                    }
+
+                    canvas.drawText("Item Name", col1X, yPosition, paint)
+                    canvas.drawText("Requested", col2X, yPosition, paint)
+                    canvas.drawText("Fulfilled", col3X, yPosition, paint)
+                    canvas.drawText("Status", col4X, yPosition, paint)
+                    yPosition += 15f
+
+                    // Draw header line
+                    canvas.drawLine(leftMargin, yPosition - 5f, rightMargin, yPosition - 5f, paint)
+                    yPosition += 2f
+
+                    // Table rows
+                    paint.isFakeBoldText = false
                     indent.items.forEach { item ->
                         if (yPosition > 750f) {
                             pdfDocument.finishPage(page)
                             page = pdfDocument.startPage(pageInfo)
                             canvas = page.canvas
                             yPosition = topMargin
+
+                            // Redraw header on new page
+                            paint.isFakeBoldText = true
+                            canvas.drawText("Item Name", col1X, yPosition, paint)
+                            canvas.drawText("Requested", col2X, yPosition, paint)
+                            canvas.drawText("Fulfilled", col3X, yPosition, paint)
+                            canvas.drawText("Status", col4X, yPosition, paint)
+                            yPosition += 15f
+                            canvas.drawLine(leftMargin, yPosition - 5f, rightMargin, yPosition - 5f, paint)
+                            yPosition += 2f
+                            paint.isFakeBoldText = false
                         }
 
                         val status = when {
-                            item.isRejected -> "[X] Rejected"
-                            item.isVerified -> "[OK] Verified"
-                            item.isFulfilled -> "[*] Fulfilled"
-                            else -> "[ ] Pending"
+                            item.isRejected -> "Rejected"
+                            item.isVerified -> "Verified"
+                            item.isFulfilled -> "Fulfilled"
+                            else -> "Pending"
                         }
 
-                        val itemText = "  - ${item.itemName}: ${item.requestedQuantity} ${item.unitOfMeasure} - $status"
-                        canvas.drawText(itemText, leftMargin + 10f, yPosition, paint)
+                        // Truncate item name if too long
+                        val itemName = if (item.itemName.length > 30) {
+                            item.itemName.substring(0, 27) + "..."
+                        } else {
+                            item.itemName
+                        }
+
+                        canvas.drawText(itemName, col1X, yPosition, paint)
+                        canvas.drawText("${item.requestedQuantity} ${item.unitOfMeasure}", col2X, yPosition, paint)
+                        canvas.drawText("${item.fulfilledQuantity ?: 0.0} ${item.unitOfMeasure}", col3X, yPosition, paint)
+                        canvas.drawText(status, col4X, yPosition, paint)
                         yPosition += 14f
                     }
 
@@ -1111,13 +1158,6 @@ class IndentViewModel @Inject constructor(
                     // Data rows
                     report.indents.forEach { indent ->
                         indent.items.forEach { item ->
-                            // Check if fulfilledBy is a UUID (contains hyphens) - if so, show N/A
-                            val fulfilledByDisplay = when {
-                                indent.fulfilledBy == null -> "N/A"
-                                indent.fulfilledBy.contains("-") -> "N/A"
-                                else -> indent.fulfilledBy
-                            }
-
                             val row = "${escapeCsv(indent.indentId)}," +
                                     "${escapeCsv(indent.chefName)}," +
                                     "${escapeCsv(indent.cuisineName)}," +
@@ -1130,7 +1170,7 @@ class IndentViewModel @Inject constructor(
                                     "${indent.fulfilledItems}," +
                                     "${indent.verifiedItems}," +
                                     "${indent.rejectedItems}," +
-                                    "${escapeCsv(fulfilledByDisplay)}," +
+                                    "${escapeCsv(indent.fulfilledBy ?: "N/A")}," +
                                     "${escapeCsv(item.itemName)}," +
                                     "${item.requestedQuantity}," +
                                     "${item.fulfilledQuantity ?: 0.0}," +

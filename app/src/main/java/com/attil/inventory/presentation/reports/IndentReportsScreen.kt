@@ -153,14 +153,17 @@ fun IndentReportsScreen(
                         value = selectedStatus ?: "All",
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Status Filter") },
+                        label = { Text("Status Filter", color = Color(0xFF666666)) },
                         trailingIcon = {
                             ExposedDropdownMenuDefaults.TrailingIcon(expanded = statusDropdownExpanded)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
                             .menuAnchor(),
-                        colors = OutlinedTextFieldDefaults.colors()
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedTextColor = Color(0xFF333333),
+                            focusedTextColor = Color(0xFF333333)
+                        )
                     )
                     ExposedDropdownMenu(
                         expanded = statusDropdownExpanded,
@@ -168,7 +171,7 @@ fun IndentReportsScreen(
                     ) {
                         statusOptions.forEach { status ->
                             DropdownMenuItem(
-                                text = { Text(status) },
+                                text = { Text(status, color = Color(0xFF333333)) },
                                 onClick = {
                                     selectedStatus = if (status == "All") null else status
                                     statusDropdownExpanded = false
@@ -403,10 +406,8 @@ fun IndentReportCard(
             // Fulfilled By
             if (indent.fulfilledBy != null) {
                 Spacer(modifier = Modifier.height(8.dp))
-                // Check if fulfilledBy is a UUID (contains hyphens) - if so, show N/A
-                val displayName = if (indent.fulfilledBy.contains("-")) "N/A" else indent.fulfilledBy
                 Text(
-                    text = "Fulfilled by: $displayName",
+                    text = "Fulfilled by: ${indent.fulfilledBy}",
                     fontSize = 12.sp,
                     color = Color(0xFF666666),
                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
