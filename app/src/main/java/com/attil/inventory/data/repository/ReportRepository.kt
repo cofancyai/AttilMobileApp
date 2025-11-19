@@ -18,9 +18,13 @@ class ReportRepository @Inject constructor(
 ) {
 
     // INWARD REPORT METHODS
-    fun getInwardReport(filter: ReportFilter): Flow<Result<InwardReport>> = flow {
+    fun getInwardReport(
+        filter: ReportFilter,
+        categoryName: String? = null,
+        vendorName: String? = null
+    ): Flow<Result<InwardReport>> = flow {
         try {
-            Log.d("ReportRepo", "Fetching inward report with filter: $filter")
+            Log.d("ReportRepo", "Fetching inward report with filter: $filter, category: $categoryName, vendor: $vendorName")
 
             val dateFilter = "gte.${filter.startDate}"
 
@@ -32,7 +36,21 @@ class ReportRepository @Inject constructor(
 
             if (response.isSuccessful) {
                 val rawData = response.body() ?: emptyList()
-                val items = parseInwardReportItems(rawData)
+                var items = parseInwardReportItems(rawData)
+
+                // Client-side filtering for category
+                if (!categoryName.isNullOrBlank()) {
+                    val beforeFilter = items.size
+                    items = items.filter { it.categoryName.equals(categoryName, ignoreCase = true) }
+                    Log.d("ReportRepo", "Category filter applied: $beforeFilter -> ${items.size} items")
+                }
+
+                // Client-side filtering for vendor
+                if (!vendorName.isNullOrBlank()) {
+                    val beforeFilter = items.size
+                    items = items.filter { it.vendorName.equals(vendorName, ignoreCase = true) }
+                    Log.d("ReportRepo", "Vendor filter applied: $beforeFilter -> ${items.size} items")
+                }
 
                 val report = InwardReport(
                     reportDate = getCurrentDateTime(),

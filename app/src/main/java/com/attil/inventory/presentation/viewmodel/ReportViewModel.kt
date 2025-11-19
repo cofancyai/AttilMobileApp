@@ -17,10 +17,12 @@ import com.attil.inventory.data.model.reports.*
 import com.attil.inventory.data.model.management.Cuisine
 import com.attil.inventory.data.model.management.Category
 import com.attil.inventory.data.model.management.Usage
+import com.attil.inventory.data.model.management.Vendor
 import com.attil.inventory.data.repository.ReportRepository
 import com.attil.inventory.data.repository.CuisineRepository
 import com.attil.inventory.data.repository.CategoryRepository
 import com.attil.inventory.data.repository.UsageRepository
+import com.attil.inventory.data.repository.VendorRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,7 +42,8 @@ class ReportViewModel @Inject constructor(
     private val reportRepository: ReportRepository,
     private val cuisineRepository: CuisineRepository,
     private val categoryRepository: CategoryRepository,
-    private val usageRepository: UsageRepository
+    private val usageRepository: UsageRepository,
+    private val vendorRepository: VendorRepository
 ) : ViewModel() {
 
     // Common state
@@ -66,6 +69,20 @@ class ReportViewModel @Inject constructor(
 
     private val _usages = MutableStateFlow<List<Usage>>(emptyList())
     val usages: StateFlow<List<Usage>> = _usages.asStateFlow()
+
+    private val _vendors = MutableStateFlow<List<Vendor>>(emptyList())
+    val vendors: StateFlow<List<Vendor>> = _vendors.asStateFlow()
+
+    // Inward Report Filter Type
+    enum class InwardFilterType {
+        CATEGORY, VENDOR
+    }
+
+    private val _inwardFilterType = MutableStateFlow<InwardFilterType?>(null)
+    val inwardFilterType: StateFlow<InwardFilterType?> = _inwardFilterType.asStateFlow()
+
+    private val _inwardFilterValue = MutableStateFlow<String?>(null)
+    val inwardFilterValue: StateFlow<String?> = _inwardFilterValue.asStateFlow()
 
     // Outward Report Filter Type
     enum class OutwardFilterType {
@@ -115,6 +132,7 @@ class ReportViewModel @Inject constructor(
         loadCuisines()
         loadCategories()
         loadUsages()
+        loadVendors()
     }
 
     private fun loadCuisines() {
@@ -175,6 +193,38 @@ class ReportViewModel @Inject constructor(
                 Log.e("ReportViewModel", "Exception loading usages", e)
             }
         }
+    }
+
+    private fun loadVendors() {
+        viewModelScope.launch {
+            try {
+                vendorRepository.getAllVendors().collect { result ->
+                    result.fold(
+                        onSuccess = { vendorList ->
+                            _vendors.value = vendorList
+                            Log.d("ReportViewModel", "Successfully loaded ${vendorList.size} vendors")
+                        },
+                        onFailure = { error ->
+                            Log.e("ReportViewModel", "Error loading vendors: ${error.message}")
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("ReportViewModel", "Exception loading vendors", e)
+            }
+        }
+    }
+
+    // INWARD FILTER MANAGEMENT
+    fun setInwardFilterType(filterType: InwardFilterType?) {
+        _inwardFilterType.value = filterType
+        _inwardFilterValue.value = null // Reset filter value when type changes
+        loadInwardReport()
+    }
+
+    fun setInwardFilterValue(value: String?) {
+        _inwardFilterValue.value = value
+        loadInwardReport()
     }
 
     // REPORT TYPE MANAGEMENT
@@ -263,6 +313,12 @@ class ReportViewModel @Inject constructor(
     // INWARD REPORT METHODS
     fun loadInwardReport() {
         viewModelScope.launch {
+            Log.d("ReportViewModel", "=== Starting loadInwardReport ===")
+            Log.d("ReportViewModel", "Start Date: ${_startDate.value}")
+            Log.d("ReportViewModel", "End Date: ${_endDate.value}")
+            Log.d("ReportViewModel", "Filter Type: ${_inwardFilterType.value}")
+            Log.d("ReportViewModel", "Filter Value: ${_inwardFilterValue.value}")
+
             _isLoading.value = true
             _errorMessage.value = null
 
@@ -271,25 +327,41 @@ class ReportViewModel @Inject constructor(
                 endDate = _endDate.value
             )
 
+            // Determine category and vendor filters based on filter type
+            val categoryFilter = if (_inwardFilterType.value == InwardFilterType.CATEGORY) {
+                _inwardFilterValue.value
+            } else null
+
+            val vendorFilter = if (_inwardFilterType.value == InwardFilterType.VENDOR) {
+                _inwardFilterValue.value
+            } else null
+
+            Log.d("ReportViewModel", "Category Filter: $categoryFilter")
+            Log.d("ReportViewModel", "Vendor Filter: $vendorFilter")
+
             try {
-                reportRepository.getInwardReport(filter).collect { result ->
+                reportRepository.getInwardReport(
+                    filter = filter,
+                    categoryName = categoryFilter,
+                    vendorName = vendorFilter
+                ).collect { result ->
                     result.fold(
                         onSuccess = { report ->
                             _inwardReport.value = report
                             _isLoading.value = false
-                            Log.d("ReportViewModel", "Inward report loaded successfully: ${report.items.size} items")
+                            Log.d("ReportViewModel", "✅ Inward report loaded successfully: ${report.items.size} items")
                         },
                         onFailure = { error ->
                             _errorMessage.value = error.message ?: "Failed to load inward report"
                             _isLoading.value = false
-                            Log.e("ReportViewModel", "Error loading inward report: ${error.message}")
+                            Log.e("ReportViewModel", "❌ Error loading inward report: ${error.message}")
                         }
                     )
                 }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Unexpected error occurred"
                 _isLoading.value = false
-                Log.e("ReportViewModel", "Exception loading inward report", e)
+                Log.e("ReportViewModel", "❌ Exception loading inward report", e)
             }
         }
     }
