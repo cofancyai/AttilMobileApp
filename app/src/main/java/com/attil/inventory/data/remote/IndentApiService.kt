@@ -93,7 +93,7 @@ interface IndentApiService {
         @Query("created_at") dateRange: String, // e.g., "gte.2024-01-01&created_at=lte.2024-12-31"
         @Query("chef_id") chefId: String? = null,
         @Query("status") status: String? = null,
-        @Query("select") select: String = "*,cuisines!cuisine_id(name),indent_items!inner(*,items!item_id(name)),users!chef_id(full_name),fulfilled_by_user:users!fulfilled_by(full_name)",
+        @Query("select") select: String = "*,cuisines!cuisine_id(name),indent_items!inner(*,items!item_id(name)),users!chef_id(full_name)",
         @Query("order") order: String = "created_at.desc"
     ): Response<List<Indent>>
 }
