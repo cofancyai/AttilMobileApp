@@ -982,7 +982,7 @@ class ImportExportViewModel @Inject constructor(
     }
 
     private suspend fun exportUsage(context: Context, file: File) {
-        val usages = usageRepository.getAllUsage().first().getOrThrow()
+        val usages = usageRepository.getAllUsages().first().getOrThrow()
         val headers = listOf("ID", "Name", "Description", "Created At")
         val data = usages.map { usage ->
             listOf(
