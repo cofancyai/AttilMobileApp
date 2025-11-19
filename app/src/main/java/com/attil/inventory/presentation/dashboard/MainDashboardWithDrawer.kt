@@ -70,9 +70,11 @@ fun MainDashboardWithDrawer(
                     }
                 },
                 onLogout = {
-                    authViewModel.logout()
-                    onLogout()
-                    scope.launch { drawerState.close() }
+                    scope.launch {
+                        drawerState.close()
+                        authViewModel.logout()
+                        onLogout()
+                    }
                 }
             )
         }

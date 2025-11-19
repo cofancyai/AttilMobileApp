@@ -1166,7 +1166,7 @@ class IndentViewModel @Inject constructor(
             val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 FileProvider.getUriForFile(
                     context,
-                    "${context.packageName}.fileprovider",
+                    "com.attil.inventory.provider",
                     file
                 )
             } else {
@@ -1175,7 +1175,8 @@ class IndentViewModel @Inject constructor(
 
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "application/pdf")
-                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
             context.startActivity(intent)
@@ -1189,7 +1190,7 @@ class IndentViewModel @Inject constructor(
             val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 FileProvider.getUriForFile(
                     context,
-                    "${context.packageName}.fileprovider",
+                    "com.attil.inventory.provider",
                     file
                 )
             } else {
@@ -1198,7 +1199,8 @@ class IndentViewModel @Inject constructor(
 
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "text/csv")
-                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
             context.startActivity(intent)
