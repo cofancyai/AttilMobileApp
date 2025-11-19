@@ -102,12 +102,12 @@ class ReportRepository @Inject constructor(
             Log.d("ReportRepo", "API Query params:")
             Log.d("ReportRepo", "  dateRange: $dateFilter")
             Log.d("ReportRepo", "  cuisineId: $cuisineFilter")
-            Log.d("ReportRepo", "  select: *,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name),indents!indent_id(chef_id,users!chef_id(full_name))")
+            Log.d("ReportRepo", "  select: *,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name),users!created_by(full_name)")
 
             val response = reportApiService.getOutwardReportByDateRange(
                 dateRange = dateFilter,
                 cuisineId = cuisineFilter,
-                select = "*,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name),indents!indent_id(chef_id,users!chef_id(full_name))",
+                select = "*,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name),users!created_by(full_name)",
                 order = "usage_date.desc"
             )
 
@@ -342,14 +342,9 @@ class ReportRepository @Inject constructor(
                     Log.w("ReportRepo", "⚠️ Missing 'cuisines' field")
                 }
 
-                val indents = data["indents"] as? Map<String, Any>
-                if (indents == null) {
-                    Log.w("ReportRepo", "⚠️ Missing 'indents' field")
-                }
-
-                val users = indents?.get("users") as? Map<String, Any>
-                if (users == null && indents != null) {
-                    Log.w("ReportRepo", "⚠️ Missing 'users' field in indents")
+                val users = data["users"] as? Map<String, Any>
+                if (users == null) {
+                    Log.w("ReportRepo", "⚠️ Missing 'users' field")
                 }
 
                 val itemId = items?.get("id")?.toString() ?: ""
