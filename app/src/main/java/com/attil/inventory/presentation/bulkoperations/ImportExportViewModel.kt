@@ -1138,32 +1138,46 @@ class ImportExportViewModel @Inject constructor(
             try {
                 _uiState.value = _uiState.value.copy(isProcessing = true)
 
+                Log.d("ImportExportVM", "Starting template download for type: $templateType")
                 val fileName = "${templateType.lowercase()}_template.xlsx"
                 val headers = getTemplateHeaders(templateType)
+                Log.d("ImportExportVM", "Template headers: $headers")
 
                 val uri = withContext(Dispatchers.IO) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        saveTemplateToDownloads(context, fileName, templateType, headers)
-                    } else {
-                        saveTemplateToExternalStorage(context, fileName, templateType, headers)
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            Log.d("ImportExportVM", "Using MediaStore API (Android 10+)")
+                            saveTemplateToDownloads(context, fileName, templateType, headers)
+                        } else {
+                            Log.d("ImportExportVM", "Using legacy file storage (Android 9-)")
+                            saveTemplateToExternalStorage(context, fileName, templateType, headers)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("ImportExportVM", "Error saving template file: ${e.message}", e)
+                        throw e
                     }
                 }
 
-                // Try to open the file, but don't crash if no app is available
-                try {
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        setDataAndType(uri, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
+                Log.d("ImportExportVM", "Template saved successfully at: $uri")
 
-                    // Use chooser to avoid crash
-                    val chooser = Intent.createChooser(intent, "Open template with")
-                    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(chooser)
-                } catch (e: Exception) {
-                    Log.e("ImportExportVM", "Could not open file, but it was saved: ${e.message}")
-                    // File is still saved, just can't open it
+                // Try to open the file, but don't crash if no app is available
+                withContext(Dispatchers.Main) {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+
+                        // Use chooser to avoid crash
+                        val chooser = Intent.createChooser(intent, "Open template with")
+                        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(chooser)
+                        Log.d("ImportExportVM", "Template opened successfully")
+                    } catch (e: Exception) {
+                        Log.e("ImportExportVM", "Could not open file, but it was saved: ${e.message}")
+                        // File is still saved, just can't open it
+                    }
                 }
 
                 _uiState.value = _uiState.value.copy(
@@ -1177,6 +1191,7 @@ class ImportExportViewModel @Inject constructor(
                     )
                 )
             } catch (e: Exception) {
+                Log.e("ImportExportVM", "Failed to download template: ${e.message}", e)
                 _uiState.value = _uiState.value.copy(
                     isProcessing = false,
                     lastResult = ImportResult(
@@ -1207,7 +1222,7 @@ class ImportExportViewModel @Inject constructor(
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
-    private suspend fun saveTemplateToDownloads(context: Context, fileName: String, templateType: String, headers: List<String>): Uri {
+    private fun saveTemplateToDownloads(context: Context, fileName: String, templateType: String, headers: List<String>): Uri {
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
             put(MediaStore.MediaColumns.MIME_TYPE, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -1225,8 +1240,12 @@ class ImportExportViewModel @Inject constructor(
         return uri
     }
 
-    private suspend fun saveTemplateToExternalStorage(context: Context, fileName: String, templateType: String, headers: List<String>): Uri {
+    private fun saveTemplateToExternalStorage(context: Context, fileName: String, templateType: String, headers: List<String>): Uri {
         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        if (!downloadsDir.exists()) {
+            downloadsDir.mkdirs()
+        }
+
         val file = File(downloadsDir, fileName)
 
         file.outputStream().use { outputStream ->
