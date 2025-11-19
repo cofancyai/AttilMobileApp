@@ -26,7 +26,7 @@ class ReportRepository @Inject constructor(
 
             val response = reportApiService.getInwardReportByDateRange(
                 dateRange = dateFilter,
-                select = "*,items(name,unit_of_measure,categories(name)),cuisines(name)",
+                select = "*,items!item_id(name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(name)",
                 order = "purchase_date.desc"
             )
 
@@ -97,7 +97,7 @@ class ReportRepository @Inject constructor(
             val response = reportApiService.getOutwardReportByDateRange(
                 dateRange = dateFilter,
                 cuisineId = cuisineFilter,
-                select = "*,items(id,name,unit_of_measure,categories(name)),cuisines(id,name),indents(chef_id,users:chef_id(full_name))",
+                select = "*,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name),indents!indent_id(chef_id,users!chef_id(full_name))",
                 order = "usage_date.desc"
             )
 

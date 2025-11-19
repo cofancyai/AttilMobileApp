@@ -388,6 +388,9 @@ fun UserDialog(
         },
         text = {
             Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Username
@@ -494,12 +497,16 @@ fun UserDialog(
                     )
 
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Column(
-                            modifier = Modifier.padding(12.dp)
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .verticalScroll(rememberScrollState())
                         ) {
                             if (cuisines.isEmpty()) {
                                 Text(
