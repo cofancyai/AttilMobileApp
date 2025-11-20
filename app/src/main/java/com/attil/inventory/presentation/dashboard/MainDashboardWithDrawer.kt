@@ -36,6 +36,7 @@ import com.attil.inventory.presentation.screen.master.UserManagementScreen
 import com.attil.inventory.presentation.reports.InventoryReportsScreen
 import com.attil.inventory.presentation.reports.ReportsMainScreen
 import com.attil.inventory.data.model.reports.ReportType
+import com.attil.inventory.presentation.bulkoperations.ImportExportScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -294,6 +295,15 @@ fun MainDashboardWithDrawer(
                             onDismiss = { currentScreen = "dashboard" },
                             onPasswordChanged = { currentScreen = "dashboard" }
                         )
+                    }
+                    "import_export" -> {
+                        if (userPermissions.contains("import_export")) {
+                            ImportExportScreen(
+                                onBackClick = { currentScreen = "dashboard" }
+                            )
+                        } else {
+                            UnauthorizedScreen(onBackClick = { currentScreen = "dashboard" })
+                        }
                     }
                 }
             }

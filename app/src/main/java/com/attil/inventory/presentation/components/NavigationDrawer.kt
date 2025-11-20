@@ -76,6 +76,11 @@ fun AppNavigationDrawer(
             title = "Reports",
             icon = Icons.Default.Assessment,
             route = "inventory_reports"
+        ),
+        NavigationItem(
+            title = "Import/Export",
+            icon = Icons.Default.ImportExport,
+            route = "import_export"
         )
     )
 
