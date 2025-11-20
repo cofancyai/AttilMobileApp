@@ -432,6 +432,235 @@ class IndentViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(verificationItems = updatedItems)
     }
 
+    fun updateReceivedQuantity(itemId: String, receivedQuantity: Double) {
+        val updatedItems = _uiState.value.verificationItems.map { item ->
+            if (item.indentItem.id == itemId) {
+                item.copy(receivedQuantity = receivedQuantity)
+            } else item
+        }
+        _uiState.value = _uiState.value.copy(verificationItems = updatedItems)
+    }
+
+    fun verifyFullyReceived(indentId: String, userId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isVerifying = true, verificationError = null)
+
+            try {
+                val verifyRequest = VerifyIndentItemRequest(
+                    isReceived = true,
+                    receivedBy = userId,
+                    receivedAt = getCurrentTimestamp()
+                )
+
+                val itemIds = _uiState.value.verificationItems.map { it.indentItem.id!! }
+
+                repository.verifyMultipleIndentItems(itemIds, verifyRequest).collect { result ->
+                    result.fold(
+                        onSuccess = {
+                            // Update each item to set verification_status and received_quantity
+                            itemIds.forEach { itemId ->
+                                val item = _uiState.value.verificationItems.find { it.indentItem.id == itemId }
+                                if (item != null) {
+                                    val updateRequest = UpdateIndentItemRequest(
+                                        verificationStatus = "Fully Verified",
+                                        receivedQuantity = item.indentItem.fulfilledQuantity
+                                    )
+                                    repository.updateIndentItem(itemId, updateRequest).collect { /* Handle result */ }
+                                }
+                            }
+
+                            // Update indent status to "Received"
+                            val updateRequest = UpdateIndentRequest(
+                                status = "Received",
+                                receivedAt = getCurrentTimestamp()
+                            )
+
+                            repository.updateIndent(indentId, updateRequest).collect { indentResult ->
+                                indentResult.fold(
+                                    onSuccess = {
+                                        _uiState.value = _uiState.value.copy(
+                                            isVerifying = false,
+                                            showVerificationDialog = false,
+                                            verificationItems = emptyList()
+                                        )
+                                        loadIndents()
+                                    },
+                                    onFailure = { error ->
+                                        _uiState.value = _uiState.value.copy(
+                                            isVerifying = false,
+                                            verificationError = error.message
+                                        )
+                                    }
+                                )
+                            }
+                        },
+                        onFailure = { error ->
+                            _uiState.value = _uiState.value.copy(
+                                isVerifying = false,
+                                verificationError = error.message
+                            )
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isVerifying = false,
+                    verificationError = e.message
+                )
+            }
+        }
+    }
+
+    fun verifyPartiallyReceived(indentId: String, userId: String, itemsWithQuantities: List<Pair<String, Double>>) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isVerifying = true, verificationError = null)
+
+            try {
+                // Update each item with received quantity and verification status
+                itemsWithQuantities.forEach { (itemId, receivedQuantity) ->
+                    val item = _uiState.value.verificationItems.find { it.indentItem.id == itemId }
+                    val fulfilledQuantity = item?.indentItem?.fulfilledQuantity ?: 0.0
+
+                    val verificationStatus = if (receivedQuantity >= fulfilledQuantity) {
+                        "Fully Verified"
+                    } else {
+                        "Partially Verified"
+                    }
+
+                    val updateRequest = UpdateIndentItemRequest(
+                        isReceived = true,
+                        receivedBy = userId,
+                        receivedAt = getCurrentTimestamp(),
+                        receivedQuantity = receivedQuantity,
+                        verificationStatus = verificationStatus
+                    )
+
+                    repository.updateIndentItem(itemId, updateRequest).collect { result ->
+                        result.onFailure { error ->
+                            _uiState.value = _uiState.value.copy(
+                                isVerifying = false,
+                                verificationError = "Failed to update item: ${error.message}"
+                            )
+                            return@collect
+                        }
+                    }
+                }
+
+                // Determine indent status based on verification
+                val allItems = _uiState.value.verificationItems
+                val verifiedCount = itemsWithQuantities.size
+                val indentStatus = if (verifiedCount == allItems.size) {
+                    val allFullyVerified = itemsWithQuantities.all { (itemId, receivedQty) ->
+                        val item = allItems.find { it.indentItem.id == itemId }
+                        receivedQty >= (item?.indentItem?.fulfilledQuantity ?: 0.0)
+                    }
+                    if (allFullyVerified) "Received" else "Partially Received"
+                } else {
+                    "Partially Received"
+                }
+
+                val updateRequest = UpdateIndentRequest(
+                    status = indentStatus,
+                    receivedAt = if (indentStatus == "Received") getCurrentTimestamp() else null
+                )
+
+                repository.updateIndent(indentId, updateRequest).collect { indentResult ->
+                    indentResult.fold(
+                        onSuccess = {
+                            _uiState.value = _uiState.value.copy(
+                                isVerifying = false,
+                                showVerificationDialog = false,
+                                verificationItems = emptyList()
+                            )
+                            loadIndents()
+                        },
+                        onFailure = { error ->
+                            _uiState.value = _uiState.value.copy(
+                                isVerifying = false,
+                                verificationError = error.message
+                            )
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isVerifying = false,
+                    verificationError = e.message
+                )
+            }
+        }
+    }
+
+    fun refulfillIndentItem(itemId: String, indentId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+
+            try {
+                // Reset verification fields to send item back to fulfillment stage
+                val updateRequest = UpdateIndentItemRequest(
+                    isReceived = false,
+                    receivedBy = null,
+                    receivedAt = null,
+                    receivedQuantity = null,
+                    verificationStatus = null
+                )
+
+                repository.updateIndentItem(itemId, updateRequest).collect { result ->
+                    result.fold(
+                        onSuccess = {
+                            _uiState.value = _uiState.value.copy(isLoading = false)
+                            loadIndents()
+                        },
+                        onFailure = { error ->
+                            _uiState.value = _uiState.value.copy(
+                                isLoading = false,
+                                error = "Failed to re-fulfill item: ${error.message}"
+                            )
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = e.message
+                )
+            }
+        }
+    }
+
+    fun deleteIndentItem(itemId: String, indentId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+
+            try {
+                // Soft delete by setting is_deleted = true
+                val updateRequest = UpdateIndentItemRequest(
+                    isDeleted = true
+                )
+
+                repository.updateIndentItem(itemId, updateRequest).collect { result ->
+                    result.fold(
+                        onSuccess = {
+                            _uiState.value = _uiState.value.copy(isLoading = false)
+                            loadIndents()
+                        },
+                        onFailure = { error ->
+                            _uiState.value = _uiState.value.copy(
+                                isLoading = false,
+                                error = "Failed to delete item: ${error.message}"
+                            )
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = e.message
+                )
+            }
+        }
+    }
+
     fun verifyIndentItems(indentId: String, userId: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isVerifying = true, verificationError = null)

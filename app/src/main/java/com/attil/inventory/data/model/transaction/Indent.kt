@@ -55,7 +55,7 @@ data class IndentItem(
     val status: String = "Pending",
     @SerializedName("created_at")
     val createdAt: String? = null,
-    
+
     // Verification fields
     @SerializedName("is_received")
     val isReceived: Boolean? = null,
@@ -63,7 +63,13 @@ data class IndentItem(
     val receivedBy: String? = null,
     @SerializedName("received_at")
     val receivedAt: String? = null,
-    
+    @SerializedName("received_quantity")
+    val receivedQuantity: Double? = null,
+    @SerializedName("verification_status")
+    val verificationStatus: String? = null, // "Fully Verified", "Partially Verified", null
+    @SerializedName("is_deleted")
+    val isDeleted: Boolean? = null,
+
     // Related entities for display
     val items: ItemForIndent? = null
 )
@@ -144,7 +150,13 @@ data class UpdateIndentItemRequest(
     @SerializedName("received_by")
     val receivedBy: String? = null,
     @SerializedName("received_at")
-    val receivedAt: String? = null
+    val receivedAt: String? = null,
+    @SerializedName("received_quantity")
+    val receivedQuantity: Double? = null,
+    @SerializedName("verification_status")
+    val verificationStatus: String? = null,
+    @SerializedName("is_deleted")
+    val isDeleted: Boolean? = null
 )
 
 data class VerifyIndentItemRequest(
@@ -159,7 +171,8 @@ data class VerifyIndentItemRequest(
 data class VerificationItem(
     val indentItem: IndentItem,
     val isFulfilled: Boolean,
-    var isReceived: Boolean = false
+    var isReceived: Boolean = false,
+    var receivedQuantity: Double = 0.0
 )
 
 // Data models for item selection in indent creation

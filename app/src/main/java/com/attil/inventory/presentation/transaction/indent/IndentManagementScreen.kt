@@ -293,7 +293,13 @@ fun IndentManagementScreen(
             onDismiss = { showIndentDetails = null },
             onUpdateStatus = onUpdateStatus,
             onFulfillIndent = onFulfillIndent,
-            onShowVerificationDialog = { viewModel.showVerificationDialog(indent) }
+            onShowVerificationDialog = { viewModel.showVerificationDialog(indent) },
+            onRefulfill = { itemId ->
+                viewModel.refulfillIndentItem(itemId, indent.id!!)
+            },
+            onDelete = { itemId ->
+                viewModel.deleteIndentItem(itemId, indent.id!!)
+            }
         )
     }
 
@@ -312,6 +318,15 @@ fun IndentManagementScreen(
                 },
                 onVerifyItems = {
                     viewModel.verifyIndentItems(indent.id!!, currentUserId)
+                },
+                onFullyReceived = {
+                    viewModel.verifyFullyReceived(indent.id!!, currentUserId)
+                },
+                onPartiallyReceived = { itemsWithQuantities ->
+                    viewModel.verifyPartiallyReceived(indent.id!!, currentUserId, itemsWithQuantities)
+                },
+                onReceivedQuantityChange = { itemId, quantity ->
+                    viewModel.updateReceivedQuantity(itemId, quantity)
                 }
             )
         }
@@ -420,8 +435,11 @@ private fun IndentDetailsDialog(
     onDismiss: () -> Unit,
     onUpdateStatus: (String, String) -> Unit,
     onFulfillIndent: () -> Unit,
-    onShowVerificationDialog: () -> Unit
+    onShowVerificationDialog: () -> Unit,
+    onRefulfill: ((String) -> Unit)? = null,
+    onDelete: ((String) -> Unit)? = null
 ) {
+    var showItemsDialog by remember { mutableStateOf<String?>(null) } // "total", "fulfilled", "verified", "partiallyVerified"
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -445,6 +463,73 @@ private fun IndentDetailsDialog(
 
                         if (!indent.notes.isNullOrEmpty()) {
                             DetailRow("Notes", indent.notes)
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Indent Report Summary
+                        Text(
+                            text = "Indent Report",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = Color(0xFF333333)
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Calculate counts
+                        val totalItems = indent.indentItems?.filter { it.isDeleted != true }?.size ?: 0
+                        val fulfilledItems = indent.indentItems?.filter {
+                            it.isDeleted != true && it.fulfilledQuantity != null && it.fulfilledQuantity!! > 0
+                        }?.size ?: 0
+                        val verifiedItems = indent.indentItems?.filter {
+                            it.isDeleted != true && it.verificationStatus == "Fully Verified"
+                        }?.size ?: 0
+                        val partiallyVerifiedItems = indent.indentItems?.filter {
+                            it.isDeleted != true && it.verificationStatus == "Partially Verified"
+                        }?.size ?: 0
+
+                        // Summary boxes
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            StatusSummaryBox(
+                                label = "Total",
+                                count = totalItems,
+                                color = Color(0xFF2196F3),
+                                onClick = { showItemsDialog = "total" },
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatusSummaryBox(
+                                label = "Fulfilled",
+                                count = fulfilledItems,
+                                color = Color(0xFF4CAF50),
+                                onClick = { showItemsDialog = "fulfilled" },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            StatusSummaryBox(
+                                label = "Verified",
+                                count = verifiedItems,
+                                color = Color(0xFF8BC34A),
+                                onClick = { showItemsDialog = "verified" },
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatusSummaryBox(
+                                label = "Partial",
+                                count = partiallyVerifiedItems,
+                                color = Color(0xFFFF9800),
+                                onClick = { showItemsDialog = "partiallyVerified" },
+                                modifier = Modifier.weight(1f)
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -550,6 +635,266 @@ private fun IndentDetailsDialog(
             }
         }
     )
+
+    // Show dialog for status items
+    showItemsDialog?.let { dialogType ->
+        val items = when (dialogType) {
+            "total" -> indent.indentItems?.filter { it.isDeleted != true }
+            "fulfilled" -> indent.indentItems?.filter {
+                it.isDeleted != true && it.fulfilledQuantity != null && it.fulfilledQuantity!! > 0
+            }
+            "verified" -> indent.indentItems?.filter {
+                it.isDeleted != true && it.verificationStatus == "Fully Verified"
+            }
+            "partiallyVerified" -> indent.indentItems?.filter {
+                it.isDeleted != true && it.verificationStatus == "Partially Verified"
+            }
+            else -> null
+        } ?: emptyList()
+
+        if (dialogType == "partiallyVerified") {
+            PartiallyVerifiedItemsDialog(
+                items = items,
+                onDismiss = { showItemsDialog = null },
+                onReFullfill = onRefulfill,
+                onDelete = onDelete
+            )
+        } else {
+            ItemsViewDialog(
+                title = when (dialogType) {
+                    "total" -> "All Items"
+                    "fulfilled" -> "Fulfilled Items"
+                    "verified" -> "Fully Verified Items"
+                    else -> "Items"
+                },
+                items = items,
+                onDismiss = { showItemsDialog = null }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ItemsViewDialog(
+    title: String,
+    items: List<IndentItem>,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF333333)
+            )
+        },
+        text = {
+            if (items.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = "No items",
+                            tint = Color(0xFF666666),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "No items in this category",
+                            color = Color(0xFF666666)
+                        )
+                    }
+                }
+            } else {
+                LazyColumn {
+                    items(items) { item ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFFF8F9FA)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp)
+                            ) {
+                                Text(
+                                    text = item.items?.name ?: "Unknown Item",
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF333333)
+                                )
+                                Text(
+                                    text = "Requested: ${item.requestedQuantity} ${item.unitOfMeasure}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF666666)
+                                )
+                                if (item.fulfilledQuantity != null) {
+                                    Text(
+                                        text = "Fulfilled: ${item.fulfilledQuantity} ${item.unitOfMeasure}",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF4CAF50)
+                                    )
+                                }
+                                if (item.receivedQuantity != null) {
+                                    Text(
+                                        text = "Received: ${item.receivedQuantity} ${item.unitOfMeasure}",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF2196F3)
+                                    )
+                                }
+                                if (item.verificationStatus != null) {
+                                    Text(
+                                        text = "Status: ${item.verificationStatus}",
+                                        fontSize = 12.sp,
+                                        color = if (item.verificationStatus == "Fully Verified") Color(0xFF4CAF50) else Color(0xFFFF9800),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = Color(0xFF666666))
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PartiallyVerifiedItemsDialog(
+    items: List<IndentItem>,
+    onDismiss: () -> Unit,
+    onReFullfill: ((String) -> Unit)? = null,
+    onDelete: ((String) -> Unit)? = null
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Partially Verified Items",
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF333333)
+            )
+        },
+        text = {
+            if (items.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            contentDescription = "No items",
+                            tint = Color(0xFF4CAF50),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "No partially verified items",
+                            color = Color(0xFF666666)
+                        )
+                    }
+                }
+            } else {
+                LazyColumn {
+                    items(items) { item ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFFFFF8E1)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = item.items?.name ?: "Unknown Item",
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFF333333)
+                                        )
+                                        Text(
+                                            text = "Fulfilled: ${item.fulfilledQuantity} ${item.unitOfMeasure}",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF4CAF50)
+                                        )
+                                        Text(
+                                            text = "Received: ${item.receivedQuantity} ${item.unitOfMeasure}",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFFFF9800),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        val shortfall = (item.fulfilledQuantity ?: 0.0) - (item.receivedQuantity ?: 0.0)
+                                        Text(
+                                            text = "Shortfall: ${shortfall} ${item.unitOfMeasure}",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFFE91E63)
+                                        )
+                                    }
+
+                                    Column(
+                                        horizontalAlignment = Alignment.End,
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        // Re-fulfill button
+                                        OutlinedButton(
+                                            onClick = { onReFullfill?.invoke(item.id!!) },
+                                            modifier = Modifier.height(32.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            enabled = onReFullfill != null
+                                        ) {
+                                            Text("Re-fulfill", fontSize = 11.sp, color = Color(0xFF1976D2))
+                                        }
+
+                                        // Delete button
+                                        OutlinedButton(
+                                            onClick = { onDelete?.invoke(item.id!!) },
+                                            modifier = Modifier.height(32.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            enabled = onDelete != null,
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                contentColor = Color(0xFFE91E63)
+                                            )
+                                        ) {
+                                            Text("Delete", fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = Color(0xFF666666))
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -562,8 +907,12 @@ private fun VerificationDialog(
     currentUserId: String,
     onDismiss: () -> Unit,
     onItemVerificationChange: (String, Boolean) -> Unit,
-    onVerifyItems: () -> Unit
+    onVerifyItems: () -> Unit,
+    onFullyReceived: () -> Unit = {},
+    onPartiallyReceived: (List<Pair<String, Double>>) -> Unit = {},
+    onReceivedQuantityChange: (String, Double) -> Unit = {}
 ) {
+    var verificationMode by remember { mutableStateOf<String?>(null) } // null, "full", "partial"
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -665,53 +1014,62 @@ private fun VerificationDialog(
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = if (item.isReceived) Color(0xFFE8F5E8) else Color(0xFFF8F9FA)
+                                containerColor = if (verificationMode == "partial") Color(0xFFFFF8E1) else Color(0xFFF8F9FA)
                             )
                         ) {
-                            Row(
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(12.dp)
                             ) {
-                                Checkbox(
-                                    checked = item.isReceived,
-                                    onCheckedChange = { checked ->
-                                        onItemVerificationChange(item.indentItem.id!!, checked)
-                                    },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = Color(0xFF4CAF50)
-                                    )
+                                Text(
+                                    text = item.indentItem.items?.name ?: "Unknown Item",
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF333333)
                                 )
 
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = item.indentItem.items?.name ?: "Unknown Item",
-                                        fontWeight = FontWeight.Medium,
-                                        color = Color(0xFF333333)
-                                    )
+                                Spacer(modifier = Modifier.height(4.dp))
 
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "Requested: ${item.indentItem.requestedQuantity} ${item.indentItem.unitOfMeasure}",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF666666)
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Requested: ${item.indentItem.requestedQuantity} ${item.indentItem.unitOfMeasure}",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF666666)
+                                    )
+                                    Text(
+                                        text = "•",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF666666)
+                                    )
+                                    Text(
+                                        text = "Fulfilled: ${item.indentItem.fulfilledQuantity} ${item.indentItem.unitOfMeasure}",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF4CAF50),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+
+                                // Show text input only in partial mode
+                                if (verificationMode == "partial") {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = if (item.receivedQuantity > 0) item.receivedQuantity.toString() else "",
+                                        onValueChange = { value ->
+                                            val quantity = value.toDoubleOrNull() ?: 0.0
+                                            onReceivedQuantityChange(item.indentItem.id!!, quantity)
+                                        },
+                                        label = { Text("Received Quantity") },
+                                        placeholder = { Text("Enter quantity received") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = Color(0xFF1976D2),
+                                            focusedLabelColor = Color(0xFF1976D2)
                                         )
-                                        Text(
-                                            text = "•",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF666666)
-                                        )
-                                        Text(
-                                            text = "Fulfilled: ${item.indentItem.fulfilledQuantity} ${item.indentItem.unitOfMeasure}",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF4CAF50),
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
+                                    )
                                 }
                             }
                         }
@@ -734,32 +1092,60 @@ private fun VerificationDialog(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val receivedCount = verificationItems.count { it.isReceived }
-                val totalFulfilledCount = verificationItems.size
-
-                val buttonText = when {
-                    verificationItems.isEmpty() -> "No Items to Verify"
-                    receivedCount == 0 -> "Verify Items"
-                    receivedCount == totalFulfilledCount -> "All Received"
-                    else -> "Partially Received ($receivedCount/$totalFulfilledCount)"
-                }
-
-                Button(
-                    onClick = onVerifyItems,
-                    enabled = !isVerifying && receivedCount > 0 && verificationItems.isNotEmpty(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF4CAF50)
-                    )
-                ) {
-                    if (isVerifying) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
+                if (verificationMode == null) {
+                    // Show mode selection buttons
+                    Button(
+                        onClick = {
+                            verificationMode = "full"
+                            onFullyReceived()
+                        },
+                        enabled = !isVerifying && verificationItems.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF4CAF50)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                    ) {
+                        Text("Fully Received", color = Color.White, fontSize = 13.sp)
                     }
-                    Text(buttonText, color = Color.White)
+
+                    Button(
+                        onClick = { verificationMode = "partial" },
+                        enabled = !isVerifying && verificationItems.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF9800)
+                        )
+                    ) {
+                        Text("Partially Received", color = Color.White, fontSize = 13.sp)
+                    }
+                } else if (verificationMode == "partial") {
+                    // Show confirm button for partial verification
+                    val receivedItems = verificationItems.filter { it.receivedQuantity > 0 }
+
+                    Button(
+                        onClick = {
+                            val itemsWithQuantities = verificationItems
+                                .filter { it.receivedQuantity > 0 }
+                                .map { it.indentItem.id!! to it.receivedQuantity }
+                            onPartiallyReceived(itemsWithQuantities)
+                        },
+                        enabled = !isVerifying && receivedItems.isNotEmpty(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF4CAF50)
+                        )
+                    ) {
+                        if (isVerifying) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(
+                            text = if (receivedItems.isEmpty()) "No Items Entered" else "Confirm (${receivedItems.size} items)",
+                            color = Color.White,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
 
                 TextButton(onClick = onDismiss) {
@@ -830,5 +1216,42 @@ private fun canPerformActions(status: String, userRole: String): Boolean {
         "chef" -> status == "Fulfilled"
         "manager", "storekeeper" -> status in listOf("Submitted", "Approved")
         else -> false
+    }
+}
+
+@Composable
+private fun StatusSummaryBox(
+    label: String,
+    count: Int,
+    color: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = color.copy(alpha = 0.1f)
+        ),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = count.toString(),
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = color
+            )
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                color = Color(0xFF666666)
+            )
+        }
     }
 }
