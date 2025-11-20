@@ -16,27 +16,28 @@ class GodownRepository @Inject constructor(
 ) {
 
     suspend fun getAllGodowns(): Flow<Result<List<Godown>>> = flow {
-        try {
+        val result = try {
             Log.d("GodownRepo", "Fetching all godowns...")
             val response = apiService.getAllGodowns()
             Log.d("GodownRepo", "Response code: ${response.code()}")
             Log.d("GodownRepo", "Response body: ${response.body()}")
 
             if (response.isSuccessful) {
-                emit(Result.success(response.body() ?: emptyList()))
+                Result.success(response.body() ?: emptyList())
             } else {
                 val errorBody = response.errorBody()?.string()
                 Log.e("GodownRepo", "Error fetching godowns: $errorBody")
-                emit(Result.failure(Exception("Failed to fetch godowns: ${response.code()} - $errorBody")))
+                Result.failure(Exception("Failed to fetch godowns: ${response.code()} - $errorBody"))
             }
         } catch (e: Exception) {
             Log.e("GodownRepo", "Exception fetching godowns", e)
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     suspend fun createGodown(request: CreateGodownRequest): Flow<Result<Godown>> = flow {
-        try {
+        val result = try {
             Log.d("GodownRepo", "Creating godown: $request")
             val response = apiService.createGodown(request)
             Log.d("GodownRepo", "Create response code: ${response.code()}")
@@ -45,24 +46,25 @@ class GodownRepository @Inject constructor(
             if (response.isSuccessful) {
                 val godowns = response.body()
                 if (!godowns.isNullOrEmpty()) {
-                    emit(Result.success(godowns.first()))
+                    Result.success(godowns.first())
                 } else {
                     Log.e("GodownRepo", "Empty response from create")
-                    emit(Result.failure(Exception("Created successfully but no data returned")))
+                    Result.failure(Exception("Created successfully but no data returned"))
                 }
             } else {
                 val errorBody = response.errorBody()?.string()
                 Log.e("GodownRepo", "Error creating godown: $errorBody")
-                emit(Result.failure(Exception("Failed to create godown: ${response.code()} - $errorBody")))
+                Result.failure(Exception("Failed to create godown: ${response.code()} - $errorBody"))
             }
         } catch (e: Exception) {
             Log.e("GodownRepo", "Exception creating godown", e)
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     suspend fun updateGodown(id: String, request: UpdateGodownRequest): Flow<Result<Godown>> = flow {
-        try {
+        val result = try {
             Log.d("GodownRepo", "Updating godown $id: $request")
             val response = apiService.updateGodown("eq.$id", request)
             Log.d("GodownRepo", "Update response code: ${response.code()}")
@@ -71,38 +73,40 @@ class GodownRepository @Inject constructor(
             if (response.isSuccessful) {
                 val godowns = response.body()
                 if (!godowns.isNullOrEmpty()) {
-                    emit(Result.success(godowns.first()))
+                    Result.success(godowns.first())
                 } else {
                     Log.e("GodownRepo", "Empty response from update")
-                    emit(Result.failure(Exception("Updated successfully but no data returned")))
+                    Result.failure(Exception("Updated successfully but no data returned"))
                 }
             } else {
                 val errorBody = response.errorBody()?.string()
                 Log.e("GodownRepo", "Error updating godown: $errorBody")
-                emit(Result.failure(Exception("Failed to update godown: ${response.code()} - $errorBody")))
+                Result.failure(Exception("Failed to update godown: ${response.code()} - $errorBody"))
             }
         } catch (e: Exception) {
             Log.e("GodownRepo", "Exception updating godown", e)
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     suspend fun deleteGodown(id: String): Flow<Result<Unit>> = flow {
-        try {
+        val result = try {
             Log.d("GodownRepo", "Deleting godown: $id")
             val response = apiService.deleteGodown("eq.$id")
             Log.d("GodownRepo", "Delete response code: ${response.code()}")
 
             if (response.isSuccessful) {
-                emit(Result.success(Unit))
+                Result.success(Unit)
             } else {
                 val errorBody = response.errorBody()?.string()
                 Log.e("GodownRepo", "Error deleting godown: $errorBody")
-                emit(Result.failure(Exception("Failed to delete godown: ${response.code()} - $errorBody")))
+                Result.failure(Exception("Failed to delete godown: ${response.code()} - $errorBody"))
             }
         } catch (e: Exception) {
             Log.e("GodownRepo", "Exception deleting godown", e)
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 }

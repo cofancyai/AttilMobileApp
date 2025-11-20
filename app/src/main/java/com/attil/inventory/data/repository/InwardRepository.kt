@@ -16,26 +16,27 @@ class InwardRepository @Inject constructor(
 ) {
 
     suspend fun getAllInwardItems(): Flow<Result<List<InwardItem>>> = flow {
-        try {
+        val result = try {
             Log.d("InwardRepo", "Fetching all inward items...")
             val response = apiService.getAllInwardItems()
             Log.d("InwardRepo", "Response code: ${response.code()}")
 
             if (response.isSuccessful) {
-                emit(Result.success(response.body() ?: emptyList()))
+                Result.success(response.body() ?: emptyList())
             } else {
                 val errorBody = response.errorBody()?.string()
                 Log.e("InwardRepo", "Error fetching inward items: $errorBody")
-                emit(Result.failure(Exception("Failed to fetch inward items: ${response.code()} - $errorBody")))
+                Result.failure(Exception("Failed to fetch inward items: ${response.code()} - $errorBody"))
             }
         } catch (e: Exception) {
             Log.e("InwardRepo", "Exception fetching inward items", e)
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     suspend fun createInwardItem(request: CreateInwardItemRequest): Flow<Result<InwardItem>> = flow {
-        try {
+        val result = try {
             Log.d("InwardRepo", "Creating inward item: $request")
 
             val itemData = hashMapOf<String, Any>()
@@ -60,22 +61,23 @@ class InwardRepository @Inject constructor(
             if (response.isSuccessful) {
                 val items = response.body()
                 if (!items.isNullOrEmpty()) {
-                    emit(Result.success(items.first()))
+                    Result.success(items.first())
                 } else {
-                    emit(Result.failure(Exception("Created successfully but no data returned")))
+                    Result.failure(Exception("Created successfully but no data returned"))
                 }
             } else {
                 val errorBody = response.errorBody()?.string()
-                emit(Result.failure(Exception("Failed to create inward item: ${response.code()} - $errorBody")))
+                Result.failure(Exception("Failed to create inward item: ${response.code()} - $errorBody"))
             }
         } catch (e: Exception) {
             Log.e("InwardRepo", "Exception creating inward item", e)
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     suspend fun updateInwardItem(id: String, request: UpdateInwardItemRequest): Flow<Result<InwardItem>> = flow {
-        try {
+        val result = try {
             val itemData = hashMapOf<String, Any>()
 
             request.itemId?.let { itemData["item_id"] = it }
@@ -97,31 +99,33 @@ class InwardRepository @Inject constructor(
             if (response.isSuccessful) {
                 val items = response.body()
                 if (!items.isNullOrEmpty()) {
-                    emit(Result.success(items.first()))
+                    Result.success(items.first())
                 } else {
-                    emit(Result.failure(Exception("Updated successfully but no data returned")))
+                    Result.failure(Exception("Updated successfully but no data returned"))
                 }
             } else {
                 val errorBody = response.errorBody()?.string()
-                emit(Result.failure(Exception("Failed to update inward item: ${response.code()} - $errorBody")))
+                Result.failure(Exception("Failed to update inward item: ${response.code()} - $errorBody"))
             }
         } catch (e: Exception) {
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     suspend fun deleteInwardItem(id: String): Flow<Result<Unit>> = flow {
-        try {
+        val result = try {
             val response = apiService.deleteInwardItem("eq.$id")
 
             if (response.isSuccessful) {
-                emit(Result.success(Unit))
+                Result.success(Unit)
             } else {
                 val errorBody = response.errorBody()?.string()
-                emit(Result.failure(Exception("Failed to delete inward item: ${response.code()} - $errorBody")))
+                Result.failure(Exception("Failed to delete inward item: ${response.code()} - $errorBody"))
             }
         } catch (e: Exception) {
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 }

@@ -16,26 +16,27 @@ class VendorRepository @Inject constructor(
 ) {
 
     suspend fun getAllVendors(): Flow<Result<List<Vendor>>> = flow {
-        try {
+        val result = try {
             Log.d("VendorRepo", "Fetching all vendors...")
             val response = apiService.getAllVendors()
             Log.d("VendorRepo", "Response code: ${response.code()}")
 
             if (response.isSuccessful) {
-                emit(Result.success(response.body() ?: emptyList()))
+                Result.success(response.body() ?: emptyList())
             } else {
                 val errorBody = response.errorBody()?.string()
                 Log.e("VendorRepo", "Error fetching vendors: $errorBody")
-                emit(Result.failure(Exception("Failed to fetch vendors: ${response.code()}")))
+                Result.failure(Exception("Failed to fetch vendors: ${response.code()}"))
             }
         } catch (e: Exception) {
             Log.e("VendorRepo", "Exception fetching vendors", e)
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     suspend fun createVendor(request: CreateVendorRequest): Flow<Result<Vendor>> = flow {
-        try {
+        val result = try {
             Log.d("VendorRepo", "Creating vendor: $request")
             val response = apiService.createVendor(request)
             Log.d("VendorRepo", "Create response code: ${response.code()}")
@@ -43,23 +44,24 @@ class VendorRepository @Inject constructor(
             if (response.isSuccessful) {
                 val vendors = response.body()
                 if (!vendors.isNullOrEmpty()) {
-                    emit(Result.success(vendors.first()))
+                    Result.success(vendors.first())
                 } else {
-                    emit(Result.failure(Exception("Created successfully but no data returned")))
+                    Result.failure(Exception("Created successfully but no data returned"))
                 }
             } else {
                 val errorBody = response.errorBody()?.string()
                 Log.e("VendorRepo", "Error creating vendor: $errorBody")
-                emit(Result.failure(Exception("Failed to create vendor: ${response.code()}")))
+                Result.failure(Exception("Failed to create vendor: ${response.code()}"))
             }
         } catch (e: Exception) {
             Log.e("VendorRepo", "Exception creating vendor", e)
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     suspend fun updateVendor(id: String, request: UpdateVendorRequest): Flow<Result<Vendor>> = flow {
-        try {
+        val result = try {
             Log.d("VendorRepo", "Updating vendor $id: $request")
             val response = apiService.updateVendor("eq.$id", request)
             Log.d("VendorRepo", "Update response code: ${response.code()}")
@@ -67,37 +69,39 @@ class VendorRepository @Inject constructor(
             if (response.isSuccessful) {
                 val vendors = response.body()
                 if (!vendors.isNullOrEmpty()) {
-                    emit(Result.success(vendors.first()))
+                    Result.success(vendors.first())
                 } else {
-                    emit(Result.failure(Exception("Updated successfully but no data returned")))
+                    Result.failure(Exception("Updated successfully but no data returned"))
                 }
             } else {
                 val errorBody = response.errorBody()?.string()
                 Log.e("VendorRepo", "Error updating vendor: $errorBody")
-                emit(Result.failure(Exception("Failed to update vendor: ${response.code()}")))
+                Result.failure(Exception("Failed to update vendor: ${response.code()}"))
             }
         } catch (e: Exception) {
             Log.e("VendorRepo", "Exception updating vendor", e)
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     suspend fun deleteVendor(id: String): Flow<Result<Unit>> = flow {
-        try {
+        val result = try {
             Log.d("VendorRepo", "Deleting vendor: $id")
             val response = apiService.deleteVendor("eq.$id")
             Log.d("VendorRepo", "Delete response code: ${response.code()}")
 
             if (response.isSuccessful) {
-                emit(Result.success(Unit))
+                Result.success(Unit)
             } else {
                 val errorBody = response.errorBody()?.string()
                 Log.e("VendorRepo", "Error deleting vendor: $errorBody")
-                emit(Result.failure(Exception("Failed to delete vendor: ${response.code()}")))
+                Result.failure(Exception("Failed to delete vendor: ${response.code()}"))
             }
         } catch (e: Exception) {
             Log.e("VendorRepo", "Exception deleting vendor", e)
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 }

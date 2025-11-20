@@ -17,26 +17,27 @@ class ItemRepository @Inject constructor(
 ) {
 
     suspend fun getAllItems(): Flow<Result<List<Item>>> = flow {
-        try {
+        val result = try {
             Log.d("ItemRepo", "Fetching all items...")
             val response = apiService.getAllItems()
             Log.d("ItemRepo", "Response code: ${response.code()}")
 
             if (response.isSuccessful) {
-                emit(Result.success(response.body() ?: emptyList()))
+                Result.success(response.body() ?: emptyList())
             } else {
                 val errorBody = response.errorBody()?.string()
                 Log.e("ItemRepo", "Error fetching items: $errorBody")
-                emit(Result.failure(Exception("Failed to fetch items: ${response.code()} - $errorBody")))
+                Result.failure(Exception("Failed to fetch items: ${response.code()} - $errorBody"))
             }
         } catch (e: Exception) {
             Log.e("ItemRepo", "Exception fetching items", e)
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     suspend fun createItem(request: CreateItemRequest): Flow<Result<Item>> = flow {
-        try {
+        val result = try {
             Log.d("ItemRepo", "Creating item: $request")
 
             val itemData = hashMapOf<String, Any>()
@@ -59,22 +60,23 @@ class ItemRepository @Inject constructor(
                             createItemCuisineAssociations(createdItem.id!!, cuisineIds)
                         }
                     }
-                    emit(Result.success(createdItem))
+                    Result.success(createdItem)
                 } else {
-                    emit(Result.failure(Exception("Created successfully but no data returned")))
+                    Result.failure(Exception("Created successfully but no data returned"))
                 }
             } else {
                 val errorBody = response.errorBody()?.string()
-                emit(Result.failure(Exception("Failed to create item: ${response.code()} - $errorBody")))
+                Result.failure(Exception("Failed to create item: ${response.code()} - $errorBody"))
             }
         } catch (e: Exception) {
             Log.e("ItemRepo", "Exception creating item", e)
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     suspend fun updateItem(id: String, request: UpdateItemRequest): Flow<Result<Item>> = flow {
-        try {
+        val result = try {
             val itemData = hashMapOf<String, Any>()
 
             request.name?.let { itemData["name"] = it }
@@ -97,33 +99,35 @@ class ItemRepository @Inject constructor(
                             createItemCuisineAssociations(id, cuisineIds)
                         }
                     }
-                    emit(Result.success(updatedItem))
+                    Result.success(updatedItem)
                 } else {
-                    emit(Result.failure(Exception("Updated successfully but no data returned")))
+                    Result.failure(Exception("Updated successfully but no data returned"))
                 }
             } else {
                 val errorBody = response.errorBody()?.string()
-                emit(Result.failure(Exception("Failed to update item: ${response.code()} - $errorBody")))
+                Result.failure(Exception("Failed to update item: ${response.code()} - $errorBody"))
             }
         } catch (e: Exception) {
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     suspend fun deleteItem(id: String): Flow<Result<Unit>> = flow {
-        try {
+        val result = try {
             deleteItemCuisineAssociations(id)
             val response = apiService.deleteItem("eq.$id")
 
             if (response.isSuccessful) {
-                emit(Result.success(Unit))
+                Result.success(Unit)
             } else {
                 val errorBody = response.errorBody()?.string()
-                emit(Result.failure(Exception("Failed to delete item: ${response.code()} - $errorBody")))
+                Result.failure(Exception("Failed to delete item: ${response.code()} - $errorBody"))
             }
         } catch (e: Exception) {
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     private suspend fun createItemCuisineAssociations(itemId: String, cuisineIds: List<String>) {
