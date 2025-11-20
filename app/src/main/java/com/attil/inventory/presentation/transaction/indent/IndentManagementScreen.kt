@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.attil.inventory.data.model.transaction.Indent
+import com.attil.inventory.data.model.transaction.IndentItem
 import com.attil.inventory.data.model.transaction.VerificationItem
 import java.text.SimpleDateFormat
 import java.util.*
