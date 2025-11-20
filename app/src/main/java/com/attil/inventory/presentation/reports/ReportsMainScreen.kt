@@ -101,10 +101,19 @@ fun ReportsMainScreen(
                 // Outward Report Card
                 ReportCard(
                     title = "Outward Report",
-                    description = "Monitor inventory consumption and usage",
+                    description = "Monitor inventory consumption and usage with filters",
                     icon = Icons.Default.CallMade,
                     color = Color(0xFFFF5722),
                     onClick = { onReportSelected(ReportType.OUTWARD) }
+                )
+
+                // Indent Report Card
+                ReportCard(
+                    title = "Indent Report",
+                    description = "Track indent fulfillment and verification status",
+                    icon = Icons.Default.Assignment,
+                    color = Color(0xFF9C27B0),
+                    onClick = { onReportSelected(ReportType.INDENT) }
                 )
 
                 Spacer(modifier = Modifier.weight(1f))

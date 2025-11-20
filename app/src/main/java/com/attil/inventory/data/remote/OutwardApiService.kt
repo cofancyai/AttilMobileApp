@@ -11,7 +11,7 @@ interface OutwardApiService {
     @Headers("Content-Type: application/json", "Prefer: return=representation")
     @GET("outward_items")
     suspend fun getAllOutwardItems(
-        @Query("select") select: String = "*,items(id,name,unit_of_measure,categories(id,name)),categories(id,name),cuisines(id,name,description)",
+        @Query("select") select: String = "*,items!item_id(id,name,unit_of_measure,categories!category_id(id,name)),categories!category_id(id,name),cuisines!cuisine_id(id,name,description)",
         @Query("order") order: String = "created_at.desc"
     ): Response<List<OutwardItem>>
 

@@ -31,11 +31,15 @@ data class Indent(
     val fulfilledAt: String? = null,
     @SerializedName("received_at")
     val receivedAt: String? = null,
-    
+
     // Related entities for display
     val cuisines: Cuisine? = null,
     @SerializedName("indent_items")
-    val indentItems: List<IndentItem>? = null
+    val indentItems: List<IndentItem>? = null,
+
+    // Chef information when joined with users table
+    @SerializedName("users")
+    val chef: ChefInfo? = null
 )
 
 data class IndentItem(
@@ -194,4 +198,14 @@ data class ItemForIndent(
 data class CategoryForIndent(
     val id: String,
     val name: String
+)
+
+// Chef information for indent display
+data class ChefInfo(
+    val id: String,
+    val username: String,
+    @SerializedName("full_name")
+    val fullName: String,
+    @SerializedName("cuisine_id")
+    val cuisineId: String?
 )

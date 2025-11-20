@@ -13,24 +13,24 @@ import retrofit2.http.*
 interface IndentApiService {
 
     @GET("indents")
-    suspend fun getAllIndents(@Query("select") select: String = "*,cuisines(*),indent_items(*,items(*))"): Response<List<Indent>>
+    suspend fun getAllIndents(@Query("select") select: String = "*,cuisines!cuisine_id(*),indent_items(*,items(*)),users!chef_id(id,username,full_name,cuisine_id)"): Response<List<Indent>>
 
     @GET("indents")
     suspend fun getIndentsByChef(
         @Query("chef_id") chefId: String,
-        @Query("select") select: String = "*,cuisines(*),indent_items(*,items(*))"
+        @Query("select") select: String = "*,cuisines!cuisine_id(*),indent_items(*,items(*)),users!chef_id(id,username,full_name,cuisine_id)"
     ): Response<List<Indent>>
 
     @GET("indents")
     suspend fun getIndentsByStatus(
         @Query("status") status: String,
-        @Query("select") select: String = "*,cuisines(*),indent_items(*,items(*))"
+        @Query("select") select: String = "*,cuisines!cuisine_id(*),indent_items(*,items(*)),users!chef_id(id,username,full_name,cuisine_id)"
     ): Response<List<Indent>>
 
     @GET("indents")
     suspend fun getIndentById(
         @Query("id") id: String,
-        @Query("select") select: String = "*,cuisines(*),indent_items(*,items(*))"
+        @Query("select") select: String = "*,cuisines!cuisine_id(*),indent_items(*,items(*)),users!chef_id(id,username,full_name,cuisine_id)"
     ): Response<List<Indent>>
 
     @POST("indents")
@@ -86,4 +86,14 @@ interface IndentApiService {
         @Query("category_name") categoryName: String,
         @Query("current_stock") stock: String = "gt.0"
     ): Response<List<Map<String, Any>>>
+
+    // Indent Reports - with date range and filters
+    @GET("indents")
+    suspend fun getIndentsForReport(
+        @Query("created_at") dateRange: String, // e.g., "gte.2024-01-01&created_at=lte.2024-12-31"
+        @Query("chef_id") chefId: String? = null,
+        @Query("status") status: String? = null,
+        @Query("select") select: String = "*,cuisines!cuisine_id(name),indent_items!inner(*,items!item_id(name)),users!chef_id(full_name)",
+        @Query("order") order: String = "created_at.desc"
+    ): Response<List<Indent>>
 }

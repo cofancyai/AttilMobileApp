@@ -35,6 +35,7 @@ import com.attil.inventory.presentation.screen.master.RoleManagementScreen
 import com.attil.inventory.presentation.screen.master.UserManagementScreen
 import com.attil.inventory.presentation.reports.InventoryReportsScreen
 import com.attil.inventory.presentation.reports.ReportsMainScreen
+import com.attil.inventory.presentation.reports.IndentReportsScreen
 import com.attil.inventory.data.model.reports.ReportType
 import com.attil.inventory.presentation.bulkoperations.ImportExportScreen
 
@@ -78,15 +79,17 @@ fun MainDashboardWithDrawer(
                 userPermissions = userPermissions,
                 onNavigate = { screen ->
                     // Check if user has permission for the screen
-                    if (userPermissions.contains(screen) || screen == "dashboard" || screen == "change_password") {
+                    if (userPermissions.contains(screen) || screen == "dashboard" || screen == "change_password" || screen == "import_export") {
                         currentScreen = screen
                         scope.launch { drawerState.close() }
                     }
                 },
                 onLogout = {
-                    authViewModel.logout()
-                    onLogout()
-                    scope.launch { drawerState.close() }
+                    scope.launch {
+                        drawerState.close()
+                        authViewModel.logout()
+                        onLogout()
+                    }
                 }
             )
         }
@@ -244,7 +247,7 @@ fun MainDashboardWithDrawer(
                     "indent_fulfillment" -> {
                         if (userPermissions.contains("indent_fulfillment")) {
                             IndentFulfillmentScreen(
-                                onBackClick = { currentScreen = "indent_management" },
+                                onBackClick = { currentScreen = "dashboard" },
                                 currentUserId = currentUserId
                             )
                         } else {
@@ -277,6 +280,7 @@ fun MainDashboardWithDrawer(
                                     currentScreen = when(reportType) {
                                         ReportType.INWARD -> "inward_report"
                                         ReportType.OUTWARD -> "outward_report"
+                                        ReportType.INDENT -> "indent_report"
                                     }
                                 }
                             )
@@ -303,6 +307,20 @@ fun MainDashboardWithDrawer(
                         } else {
                             UnauthorizedScreen(onBackClick = { currentScreen = "dashboard" })
                         }
+                    }
+                    "indent_report" -> {
+                        if (userPermissions.contains("inventory_reports")) {
+                            IndentReportsScreen(
+                                onBackClick = { currentScreen = "inventory_reports" }
+                            )
+                        } else {
+                            UnauthorizedScreen(onBackClick = { currentScreen = "dashboard" })
+                        }
+                    }
+                    "import_export" -> {
+                        ImportExportScreen(
+                            onBackClick = { currentScreen = "dashboard" }
+                        )
                     }
                     "change_password" -> {
                         ChangePasswordDialog(

@@ -9,7 +9,7 @@ interface InwardApiService {
     @Headers("Content-Type: application/json", "Prefer: return=representation")
     @GET("inward_items")
     suspend fun getAllInwardItems(
-        @Query("select") select: String = "*,items(*,categories(*),godowns(*),racks(*),item_cuisines(cuisines(*))),cuisines(*)",
+        @Query("select") select: String = "*,items!item_id(*,categories!category_id(*),godowns!godown_id(*),racks!rack_id(*),item_cuisines(cuisines(*))),cuisines!cuisine_id(*)",
         @Query("order") order: String = "purchase_date.desc"
     ): Response<List<InwardItem>>
 

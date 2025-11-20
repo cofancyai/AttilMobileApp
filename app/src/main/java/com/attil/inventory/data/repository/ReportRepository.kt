@@ -18,21 +18,39 @@ class ReportRepository @Inject constructor(
 ) {
 
     // INWARD REPORT METHODS
-    fun getInwardReport(filter: ReportFilter): Flow<Result<InwardReport>> = flow {
+    fun getInwardReport(
+        filter: ReportFilter,
+        categoryName: String? = null,
+        vendorName: String? = null
+    ): Flow<Result<InwardReport>> = flow {
         try {
-            Log.d("ReportRepo", "Fetching inward report with filter: $filter")
+            Log.d("ReportRepo", "Fetching inward report with filter: $filter, category: $categoryName, vendor: $vendorName")
 
             val dateFilter = "gte.${filter.startDate}"
 
             val response = reportApiService.getInwardReportByDateRange(
                 dateRange = dateFilter,
-                select = "*,items(name,unit_of_measure,categories(name)),cuisines(name)",
+                select = "*,items!item_id(name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(name)",
                 order = "purchase_date.desc"
             )
 
             if (response.isSuccessful) {
                 val rawData = response.body() ?: emptyList()
-                val items = parseInwardReportItems(rawData)
+                var items = parseInwardReportItems(rawData)
+
+                // Client-side filtering for category
+                if (!categoryName.isNullOrBlank()) {
+                    val beforeFilter = items.size
+                    items = items.filter { it.categoryName.equals(categoryName, ignoreCase = true) }
+                    Log.d("ReportRepo", "Category filter applied: $beforeFilter -> ${items.size} items")
+                }
+
+                // Client-side filtering for vendor
+                if (!vendorName.isNullOrBlank()) {
+                    val beforeFilter = items.size
+                    items = items.filter { it.vendorName.equals(vendorName, ignoreCase = true) }
+                    Log.d("ReportRepo", "Vendor filter applied: $beforeFilter -> ${items.size} items")
+                }
 
                 val report = InwardReport(
                     reportDate = getCurrentDateTime(),
@@ -81,22 +99,70 @@ class ReportRepository @Inject constructor(
         }
     }
 
-    // OUTWARD REPORT METHODS WITH COST CALCULATION
-    fun getOutwardReport(filter: ReportFilter): Flow<Result<OutwardReport>> = flow {
+    // OUTWARD REPORT METHODS WITH COST CALCULATION AND FILTERS
+    fun getOutwardReport(
+        filter: ReportFilter,
+        cuisineId: String? = null,
+        categoryName: String? = null,
+        purposeName: String? = null
+    ): Flow<Result<OutwardReport>> = flow {
         try {
-            Log.d("ReportRepo", "Fetching outward report with cost calculation")
+            Log.d("ReportRepo", "=== getOutwardReport START ===")
+            Log.d("ReportRepo", "Filter start date: ${filter.startDate}")
+            Log.d("ReportRepo", "Filter end date: ${filter.endDate}")
+            Log.d("ReportRepo", "Cuisine filter: $cuisineId")
+            Log.d("ReportRepo", "Category filter: $categoryName")
+            Log.d("ReportRepo", "Purpose filter: $purposeName")
 
             val dateFilter = "gte.${filter.startDate}"
+            val cuisineFilter = if (cuisineId != null) "eq.$cuisineId" else null
+
+            Log.d("ReportRepo", "API Query params:")
+            Log.d("ReportRepo", "  dateRange: $dateFilter")
+            Log.d("ReportRepo", "  cuisineId: $cuisineFilter")
+            Log.d("ReportRepo", "  select: *,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name),users!created_by(full_name)")
 
             val response = reportApiService.getOutwardReportByDateRange(
                 dateRange = dateFilter,
-                select = "*,items(id,name,unit_of_measure,categories(name)),cuisines(name)",
+                cuisineId = cuisineFilter,
+                select = "*,items!item_id(id,name,unit_of_measure,categories!category_id(name)),cuisines!cuisine_id(id,name),users!created_by(full_name)",
                 order = "usage_date.desc"
             )
 
+            Log.d("ReportRepo", "API Response code: ${response.code()}")
+            Log.d("ReportRepo", "API Response successful: ${response.isSuccessful}")
+
             if (response.isSuccessful) {
                 val rawData = response.body() ?: emptyList()
-                val items = parseOutwardReportItemsWithCosts(rawData)
+                Log.d("ReportRepo", "Raw data received: ${rawData.size} items")
+
+                if (rawData.isEmpty()) {
+                    Log.w("ReportRepo", "⚠️ No data returned from API")
+                } else {
+                    Log.d("ReportRepo", "First item sample (full): ${rawData.firstOrNull()}")
+                    rawData.firstOrNull()?.let { item ->
+                        Log.d("ReportRepo", "  created_by: ${item["created_by"]}")
+                        Log.d("ReportRepo", "  cuisine_id: ${item["cuisine_id"]}")
+                        Log.d("ReportRepo", "  cuisines: ${item["cuisines"]}")
+                    }
+                }
+
+                Log.d("ReportRepo", "Starting to parse outward report items...")
+                var items = parseOutwardReportItemsWithCosts(rawData)
+                Log.d("ReportRepo", "After parsing: ${items.size} items")
+
+                // Client-side filtering for category and purpose
+                if (!categoryName.isNullOrBlank()) {
+                    val beforeFilter = items.size
+                    items = items.filter { it.categoryName.equals(categoryName, ignoreCase = true) }
+                    Log.d("ReportRepo", "Category filter applied: $beforeFilter -> ${items.size} items")
+                }
+
+                if (!purposeName.isNullOrBlank()) {
+                    val beforeFilter = items.size
+                    items = items.filter { it.purpose.equals(purposeName, ignoreCase = true) }
+                    Log.d("ReportRepo", "Purpose filter applied: $beforeFilter -> ${items.size} items")
+                }
 
                 val report = OutwardReport(
                     reportDate = getCurrentDateTime(),
@@ -107,15 +173,21 @@ class ReportRepository @Inject constructor(
                     items = items
                 )
 
-                Log.d("ReportRepo", "Successfully fetched outward report with costs: ${items.size} items")
+                Log.d("ReportRepo", "✅ Successfully created outward report: ${items.size} items, total value: ${report.totalValue}")
                 emit(Result.success(report))
             } else {
                 val errorBody = response.errorBody()?.string()
-                Log.e("ReportRepo", "Error fetching outward report: $errorBody")
+                Log.e("ReportRepo", "❌ API Error Response:")
+                Log.e("ReportRepo", "  Status code: ${response.code()}")
+                Log.e("ReportRepo", "  Error body: $errorBody")
+                Log.e("ReportRepo", "  Headers: ${response.headers()}")
                 emit(Result.failure(Exception("Failed to fetch outward report: ${response.code()} - $errorBody")))
             }
         } catch (e: Exception) {
-            Log.e("ReportRepo", "Exception fetching outward report", e)
+            Log.e("ReportRepo", "❌ Exception in getOutwardReport:")
+            Log.e("ReportRepo", "  Message: ${e.message}")
+            Log.e("ReportRepo", "  Type: ${e.javaClass.simpleName}")
+            Log.e("ReportRepo", "  Stack trace:", e)
             emit(Result.failure(e))
         }
     }
@@ -143,6 +215,100 @@ class ReportRepository @Inject constructor(
             Log.e("ReportRepo", "Exception fetching outward summary", e)
             emit(Result.failure(e))
         }
+    }
+
+    // CUISINE-WISE REPORT METHODS
+    fun getCuisineWiseReport(filter: ReportFilter, cuisineId: String?): Flow<Result<CuisineWiseReport>> = flow {
+        try {
+            Log.d("ReportRepo", "Fetching cuisine-wise report for cuisine ID: ${cuisineId ?: "All"}")
+
+            val dateFilter = "gte.${filter.startDate}"
+            val cuisineFilter = if (cuisineId != null) "eq.$cuisineId" else null
+
+            Log.d("ReportRepo", "API call with dateFilter: $dateFilter, cuisineFilter: $cuisineFilter")
+
+            val response = reportApiService.getCuisineWiseReportByDateRange(
+                dateRange = dateFilter,
+                cuisineId = cuisineFilter,
+                select = "*,items(id,name,unit_of_measure,categories(name)),cuisines(id,name),users(full_name)",
+                order = "usage_date.desc"
+            )
+
+            if (response.isSuccessful) {
+                val rawData = response.body() ?: emptyList()
+                Log.d("ReportRepo", "Received ${rawData.size} raw items from API")
+
+                // Parse all items first
+                val allItems = parseOutwardReportItemsWithCosts(rawData)
+                Log.d("ReportRepo", "Parsed ${allItems.size} items")
+
+                // Client-side filtering by cuisine if needed (as fallback if API filter didn't work)
+                val filteredItems = if (cuisineId != null) {
+                    allItems.filter { item ->
+                        // Extract cuisine ID from the cuisines object in raw data
+                        val itemRawData = rawData.find { it["id"] == item.id }
+                        val cuisines = itemRawData?.get("cuisines") as? Map<String, Any>
+                        val itemCuisineId = cuisines?.get("id")?.toString()
+                        Log.d("ReportRepo", "Item ${item.itemName}: cuisineId=$itemCuisineId, looking for=$cuisineId")
+                        itemCuisineId == cuisineId
+                    }
+                } else {
+                    allItems
+                }
+
+                Log.d("ReportRepo", "After cuisine filtering: ${filteredItems.size} items")
+
+                // Calculate cuisine breakdown (from filtered items)
+                val cuisineBreakdown = calculateCuisineBreakdown(filteredItems)
+
+                val totalValue = filteredItems.sumOf { it.calculatedTotalCost }.toBigDecimal()
+                val cuisineName = if (cuisineId == null) {
+                    null  // All cuisines
+                } else {
+                    filteredItems.firstOrNull()?.cuisineName  // Get cuisine name from first item
+                }
+
+                val report = CuisineWiseReport(
+                    reportDate = getCurrentDateTime(),
+                    filter = filter,
+                    cuisineName = cuisineName,
+                    totalTransactions = filteredItems.size,
+                    totalQuantity = filteredItems.sumOf { it.outwardQuantity },
+                    totalValue = totalValue,
+                    items = filteredItems,
+                    cuisineBreakdown = cuisineBreakdown
+                )
+
+                Log.d("ReportRepo", "Successfully created cuisine-wise report: ${filteredItems.size} items, ${cuisineBreakdown.size} cuisines, total=$totalValue")
+                emit(Result.success(report))
+            } else {
+                val errorBody = response.errorBody()?.string()
+                Log.e("ReportRepo", "Error fetching cuisine-wise report: $errorBody")
+                emit(Result.failure(Exception("Failed to fetch cuisine-wise report: ${response.code()} - $errorBody")))
+            }
+        } catch (e: Exception) {
+            Log.e("ReportRepo", "Exception fetching cuisine-wise report", e)
+            emit(Result.failure(e))
+        }
+    }
+
+    private fun calculateCuisineBreakdown(items: List<OutwardReportItem>): List<CuisineBreakdownItem> {
+        val totalCost = items.sumOf { it.calculatedTotalCost }
+
+        return items
+            .filter { !it.cuisineName.isNullOrBlank() }
+            .groupBy { it.cuisineName!! }
+            .map { (cuisineName, cuisineItems) ->
+                val cuisineTotalCost = cuisineItems.sumOf { it.calculatedTotalCost }
+                CuisineBreakdownItem(
+                    cuisineName = cuisineName,
+                    totalTransactions = cuisineItems.size,
+                    totalQuantity = cuisineItems.sumOf { it.outwardQuantity },
+                    totalCost = cuisineTotalCost,
+                    percentageOfTotal = if (totalCost > 0) (cuisineTotalCost / totalCost) * 100 else 0.0
+                )
+            }
+            .sortedByDescending { it.totalCost }
     }
 
     // PRIVATE HELPER METHODS
@@ -178,19 +344,43 @@ class ReportRepository @Inject constructor(
     }
 
     private suspend fun parseOutwardReportItemsWithCosts(rawData: List<Map<String, Any>>): List<OutwardReportItem> {
-        return rawData.mapNotNull { data ->
+        Log.d("ReportRepo", "=== parseOutwardReportItemsWithCosts START ===")
+        Log.d("ReportRepo", "Processing ${rawData.size} raw items")
+
+        var successCount = 0
+        var errorCount = 0
+
+        val result = rawData.mapNotNull { data ->
             try {
+                Log.d("ReportRepo", "Parsing item data: ${data.keys}")
+
                 val items = data["items"] as? Map<String, Any>
+                if (items == null) {
+                    Log.w("ReportRepo", "⚠️ Missing 'items' field in data: $data")
+                }
+
                 val categories = (items?.get("categories") as? Map<String, Any>)
                 val cuisines = data["cuisines"] as? Map<String, Any>
+                if (cuisines == null) {
+                    Log.w("ReportRepo", "⚠️ Missing 'cuisines' field")
+                }
+
+                val users = data["users"] as? Map<String, Any>
+                val chefName = users?.get("full_name")?.toString()
+
                 val itemId = items?.get("id")?.toString() ?: ""
                 val usageDate = data["usage_date"]?.toString() ?: ""
                 val outwardQuantity = (data["outward_quantity"] as? Number)?.toDouble() ?: 0.0
+                val createdBy = data["created_by"]?.toString()
+
+                Log.d("ReportRepo", "Item ID: $itemId, Usage Date: $usageDate, Quantity: $outwardQuantity")
+                Log.d("ReportRepo", "  created_by value: $createdBy")
+                Log.d("ReportRepo", "  chefName from users: $chefName")
 
                 // Calculate moving average cost
                 val costData = calculateMovingAverageCost(itemId, usageDate)
 
-                OutwardReportItem(
+                val item = OutwardReportItem(
                     id = data["id"]?.toString() ?: "",
                     itemId = itemId,
                     itemName = items?.get("name")?.toString() ?: "Unknown Item",
@@ -204,16 +394,30 @@ class ReportRepository @Inject constructor(
                     sourceType = data["source_type"]?.toString(),
                     indentId = data["indent_id"]?.toString(),
                     notes = data["notes"]?.toString(),
-                    createdBy = data["created_by"]?.toString(),
+                    createdBy = createdBy,
+                    chefName = chefName, // Get chef name from users join
                     calculatedCostPerUnit = costData.first,
                     calculatedTotalCost = costData.first * outwardQuantity,
                     costCalculationMethod = costData.second
                 )
+
+                successCount++
+                item
             } catch (e: Exception) {
-                Log.e("ReportRepo", "Error parsing outward item: ${e.message}")
+                errorCount++
+                Log.e("ReportRepo", "❌ Error parsing outward item:")
+                Log.e("ReportRepo", "  Message: ${e.message}")
+                Log.e("ReportRepo", "  Data: $data")
+                Log.e("ReportRepo", "  Stack trace:", e)
                 null
             }
         }
+
+        Log.d("ReportRepo", "=== parseOutwardReportItemsWithCosts END ===")
+        Log.d("ReportRepo", "Successfully parsed: $successCount items")
+        Log.d("ReportRepo", "Failed to parse: $errorCount items")
+
+        return result
     }
 
     private suspend fun calculateMovingAverageCost(itemId: String, usageDate: String): Pair<Double, String> {

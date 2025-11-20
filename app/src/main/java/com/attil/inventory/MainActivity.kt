@@ -19,6 +19,8 @@ import com.attil.inventory.presentation.management.usage.UsageManagementScreen
 import com.attil.inventory.presentation.management.vendor.VendorManagementScreen
 import com.attil.inventory.presentation.reports.InventoryReportsScreen
 import com.attil.inventory.presentation.reports.ReportsMainScreen
+import com.attil.inventory.presentation.reports.IndentReportsScreen
+import com.attil.inventory.presentation.bulkoperations.ImportExportScreen
 import com.attil.inventory.presentation.screen.master.RoleManagementScreen
 import com.attil.inventory.presentation.screen.master.UserManagementScreen
 import com.attil.inventory.presentation.theme.AttilInventoryTheme
@@ -130,7 +132,7 @@ class MainActivity : ComponentActivity() {
                         }
                         "indent_fulfillment" -> {
                             IndentFulfillmentScreen(
-                                onBackClick = { currentScreen = "indent_management" },
+                                onBackClick = { currentScreen = "dashboard" },
                                 currentUserId = "550e8400-e29b-41d4-a716-446655440000"
                             )
                         }
@@ -151,6 +153,7 @@ class MainActivity : ComponentActivity() {
                                     currentScreen = when(reportType) {
                                         ReportType.INWARD -> "inward_report"
                                         ReportType.OUTWARD -> "outward_report"
+                                        ReportType.INDENT -> "indent_report"
                                     }
                                 }
                             )
@@ -165,6 +168,16 @@ class MainActivity : ComponentActivity() {
                             InventoryReportsScreen(
                                 reportType = ReportType.OUTWARD,
                                 onBackClick = { currentScreen = "inventory_reports" }
+                            )
+                        }
+                        "indent_report" -> {
+                            IndentReportsScreen(
+                                onBackClick = { currentScreen = "inventory_reports" }
+                            )
+                        }
+                        "import_export" -> {
+                            ImportExportScreen(
+                                onBackClick = { currentScreen = "dashboard" }
                             )
                         }
 

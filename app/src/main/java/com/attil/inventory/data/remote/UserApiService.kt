@@ -13,7 +13,7 @@ interface UserApiService {
     @Headers("Content-Type: application/json")
     @GET("users")
     suspend fun getAllUsers(
-        @Query("select") select: String = "*",
+        @Query("select") select: String = "*,roles!role_id(*),cuisines!cuisine_id(*),user_cuisines(id,cuisine_id,cuisines(*))",
         @Query("order") order: String = "created_at.desc"
     ): Response<List<User>>
 
@@ -21,35 +21,35 @@ interface UserApiService {
     @GET("users")
     suspend fun getUserById(
         @Query("id") id: String,
-        @Query("select") select: String = "*"
+        @Query("select") select: String = "*,roles!role_id(*),cuisines!cuisine_id(*),user_cuisines(id,cuisine_id,cuisines(*))"
     ): Response<List<User>>
 
     @Headers("Content-Type: application/json")
     @GET("users")
     suspend fun getUserByUsername(
         @Query("username") username: String,
-        @Query("select") select: String = "*"
+        @Query("select") select: String = "*,roles!role_id(*),cuisines!cuisine_id(*),user_cuisines(id,cuisine_id,cuisines(*))"
     ): Response<List<User>>
 
     @Headers("Content-Type: application/json")
     @GET("users")
     suspend fun getUserByEmail(
         @Query("email") email: String,
-        @Query("select") select: String = "*"
+        @Query("select") select: String = "*,roles!role_id(*),cuisines!cuisine_id(*),user_cuisines(id,cuisine_id,cuisines(*))"
     ): Response<List<User>>
 
     @Headers("Content-Type: application/json")
     @GET("users")
     suspend fun getUsersByRole(
         @Query("role_id") roleId: String,
-        @Query("select") select: String = "*"
+        @Query("select") select: String = "*,roles!role_id(*),cuisines!cuisine_id(*),user_cuisines(id,cuisine_id,cuisines(*))"
     ): Response<List<User>>
 
     @Headers("Content-Type: application/json")
     @GET("users")
     suspend fun getActiveUsers(
         @Query("is_active") isActive: Boolean = true,
-        @Query("select") select: String = "*"
+        @Query("select") select: String = "*,roles!role_id(*),cuisines!cuisine_id(*),user_cuisines(id,cuisine_id,cuisines(*))"
     ): Response<List<User>>
 
     @Headers("Content-Type: application/json", "Prefer: return=representation")
@@ -92,7 +92,7 @@ interface UserApiService {
     @GET("users")
     suspend fun searchUsers(
         @Query("or") searchQuery: String,
-        @Query("select") select: String = "*"
+        @Query("select") select: String = "*,roles!role_id(*),cuisines!cuisine_id(*)"
     ): Response<List<User>>
 
     @Headers("Content-Type: application/json")
@@ -100,7 +100,7 @@ interface UserApiService {
     suspend fun getUsersWithFilters(
         @Query("role_id") roleId: String? = null,
         @Query("is_active") isActive: Boolean? = null,
-        @Query("select") select: String = "*"
+        @Query("select") select: String = "*,roles!role_id(*),cuisines!cuisine_id(*)"
     ): Response<List<User>>
 
     @Headers("Content-Type: application/json", "Prefer: return=representation")
@@ -109,4 +109,31 @@ interface UserApiService {
         @Query("id") id: String,
         @Body permissionsUpdate: Map<String, Any>
     ): Response<List<User>>
+
+    // User Cuisines Management
+    @Headers("Content-Type: application/json")
+    @GET("user_cuisines")
+    suspend fun getUserCuisines(
+        @Query("user_id") userId: String,
+        @Query("select") select: String = "*,cuisines(*)"
+    ): Response<List<com.attil.inventory.data.model.master.UserCuisineRelation>>
+
+    @Headers("Content-Type: application/json", "Prefer: return=representation")
+    @POST("user_cuisines")
+    suspend fun assignCuisineToUser(
+        @Body assignment: Map<String, String>
+    ): Response<List<com.attil.inventory.data.model.master.UserCuisineRelation>>
+
+    @Headers("Content-Type: application/json")
+    @DELETE("user_cuisines")
+    suspend fun removeCuisineFromUser(
+        @Query("user_id") userId: String,
+        @Query("cuisine_id") cuisineId: String
+    ): Response<Unit>
+
+    @Headers("Content-Type: application/json")
+    @DELETE("user_cuisines")
+    suspend fun removeAllCuisinesFromUser(
+        @Query("user_id") userId: String
+    ): Response<Unit>
 }

@@ -8,10 +8,10 @@ import com.attil.inventory.data.model.master.Role
 import com.attil.inventory.data.model.master.CreateUserRequest
 import com.attil.inventory.data.model.master.UpdateUserRequest
 import com.attil.inventory.data.model.master.ResetPasswordRequest
-import com.attil.inventory.data.model.management.Cuisine
 import com.attil.inventory.data.repository.UserRepository
 import com.attil.inventory.data.repository.RoleRepository
 import com.attil.inventory.data.repository.CuisineRepository
+import com.attil.inventory.data.model.management.Cuisine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -157,8 +157,9 @@ class UserViewModel @Inject constructor(
         fullName: String,
         phone: String?,
         roleId: String?,
+        cuisineId: String?,
         isActive: Boolean,
-        cuisineIds: List<String>? = null
+        cuisineIds: List<String> = emptyList()
     ) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -172,22 +173,44 @@ class UserViewModel @Inject constructor(
                     fullName = fullName,
                     phone = phone,
                     roleId = roleId,
+                    cuisineId = cuisineId,
                     password = password,
-                    isActive = isActive,
-                    cuisineIds = cuisineIds
+                    isActive = isActive
                 )
 
                 userRepository.createUser(createUserRequest).collectLatest { result ->
-                    _isLoading.value = false
                     result.fold(
                         onSuccess = { createdUser ->
                             Log.d("UserViewModel", "Successfully created user: ${createdUser.username}")
-                            _successMessage.value = "User created successfully"
-                            loadUsers() // Refresh the list
+
+                            // Update user cuisines in junction table if cuisineIds provided
+                            if (cuisineIds.isNotEmpty()) {
+                                userRepository.updateUserCuisines(createdUser.id, cuisineIds).collectLatest { cuisineResult ->
+                                    cuisineResult.fold(
+                                        onSuccess = {
+                                            Log.d("UserViewModel", "Successfully assigned ${cuisineIds.size} cuisines to user")
+                                            _successMessage.value = "User created successfully with ${cuisineIds.size} cuisine(s)"
+                                            _isLoading.value = false
+                                            loadUsers() // Refresh the list
+                                        },
+                                        onFailure = { exception ->
+                                            Log.e("UserViewModel", "Error assigning cuisines", exception)
+                                            _errorMessage.value = "User created but failed to assign cuisines: ${exception.message}"
+                                            _isLoading.value = false
+                                            loadUsers()
+                                        }
+                                    )
+                                }
+                            } else {
+                                _successMessage.value = "User created successfully"
+                                _isLoading.value = false
+                                loadUsers()
+                            }
                         },
                         onFailure = { exception ->
                             Log.e("UserViewModel", "Error creating user", exception)
                             _errorMessage.value = exception.message ?: "Failed to create user"
+                            _isLoading.value = false
                         }
                     )
                 }
@@ -206,8 +229,9 @@ class UserViewModel @Inject constructor(
         fullName: String?,
         phone: String?,
         roleId: String?,
+        cuisineId: String?,
         isActive: Boolean?,
-        cuisineIds: List<String>? = null
+        cuisineIds: List<String> = emptyList()
     ) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -221,21 +245,43 @@ class UserViewModel @Inject constructor(
                     fullName = fullName,
                     phone = phone,
                     roleId = roleId,
-                    isActive = isActive,
-                    cuisineIds = cuisineIds
+                    cuisineId = cuisineId,
+                    isActive = isActive
                 )
 
                 userRepository.updateUser(userId, updateUserRequest).collectLatest { result ->
-                    _isLoading.value = false
                     result.fold(
                         onSuccess = { updatedUser ->
                             Log.d("UserViewModel", "Successfully updated user: ${updatedUser.username}")
-                            _successMessage.value = "User updated successfully"
-                            loadUsers() // Refresh the list
+
+                            // Update user cuisines in junction table if cuisineIds provided
+                            if (cuisineIds.isNotEmpty()) {
+                                userRepository.updateUserCuisines(userId, cuisineIds).collectLatest { cuisineResult ->
+                                    cuisineResult.fold(
+                                        onSuccess = {
+                                            Log.d("UserViewModel", "Successfully updated ${cuisineIds.size} cuisines for user")
+                                            _successMessage.value = "User updated successfully with ${cuisineIds.size} cuisine(s)"
+                                            _isLoading.value = false
+                                            loadUsers() // Refresh the list
+                                        },
+                                        onFailure = { exception ->
+                                            Log.e("UserViewModel", "Error updating cuisines", exception)
+                                            _errorMessage.value = "User updated but failed to update cuisines: ${exception.message}"
+                                            _isLoading.value = false
+                                            loadUsers()
+                                        }
+                                    )
+                                }
+                            } else {
+                                _successMessage.value = "User updated successfully"
+                                _isLoading.value = false
+                                loadUsers()
+                            }
                         },
                         onFailure = { exception ->
                             Log.e("UserViewModel", "Error updating user", exception)
                             _errorMessage.value = exception.message ?: "Failed to update user"
+                            _isLoading.value = false
                         }
                     )
                 }

@@ -41,8 +41,24 @@ fun InventoryReportsScreen(
     val inwardReport by viewModel.inwardReport.collectAsState()
     val outwardReport by viewModel.outwardReport.collectAsState()
 
+    // Inward filter state
+    val vendors by viewModel.vendors.collectAsState()
+    val inwardFilterType by viewModel.inwardFilterType.collectAsState()
+    val inwardFilterValue by viewModel.inwardFilterValue.collectAsState()
+
+    // Outward filter state
+    val cuisines by viewModel.cuisines.collectAsState()
+    val categories by viewModel.categories.collectAsState()
+    val usages by viewModel.usages.collectAsState()
+    val outwardFilterType by viewModel.outwardFilterType.collectAsState()
+    val outwardFilterValue by viewModel.outwardFilterValue.collectAsState()
+
     var showDatePicker by remember { mutableStateOf(false) }
     var isDatePickerForStart by remember { mutableStateOf(true) }
+    var inwardFilterTypeDropdownExpanded by remember { mutableStateOf(false) }
+    var inwardFilterValueDropdownExpanded by remember { mutableStateOf(false) }
+    var filterTypeDropdownExpanded by remember { mutableStateOf(false) }
+    var filterValueDropdownExpanded by remember { mutableStateOf(false) }
 
     // Set report type when screen loads
     LaunchedEffect(reportType) {
@@ -83,6 +99,7 @@ fun InventoryReportsScreen(
                             text = when (reportType) {
                                 ReportType.INWARD -> "Inward Report"
                                 ReportType.OUTWARD -> "Outward Report"
+                                ReportType.INDENT -> "Indent Report"
                             },
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Bold,
@@ -91,7 +108,8 @@ fun InventoryReportsScreen(
                         Text(
                             text = when (reportType) {
                                 ReportType.INWARD -> "Track inventory purchases and receipts"
-                                ReportType.OUTWARD -> "Monitor inventory consumption and usage with calculated costs"
+                                ReportType.OUTWARD -> "Monitor inventory consumption and usage with filters"
+                                ReportType.INDENT -> "Track indent fulfillment and verification status"
                             },
                             fontSize = 14.sp,
                             color = Color(0xFF666666)
@@ -158,6 +176,347 @@ fun InventoryReportsScreen(
                         )
                     }
                 }
+
+                // Inward Report Filters
+                if (reportType == ReportType.INWARD) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Filters",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1976D2)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Filter Type Dropdown
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { inwardFilterTypeDropdownExpanded = !inwardFilterTypeDropdownExpanded },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Default.FilterList,
+                                contentDescription = "Filter Type",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = when (inwardFilterType) {
+                                    com.attil.inventory.presentation.viewmodel.ReportViewModel.InwardFilterType.CATEGORY -> "Category wise"
+                                    com.attil.inventory.presentation.viewmodel.ReportViewModel.InwardFilterType.VENDOR -> "Vendor wise"
+                                    null -> "Select Filter Type"
+                                },
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Icon(
+                                if (inwardFilterTypeDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                contentDescription = "Dropdown"
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = inwardFilterTypeDropdownExpanded,
+                            onDismissRequest = { inwardFilterTypeDropdownExpanded = false },
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .background(Color.White)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Category wise", color = Color(0xFF333333)) },
+                                onClick = {
+                                    viewModel.setInwardFilterType(com.attil.inventory.presentation.viewmodel.ReportViewModel.InwardFilterType.CATEGORY)
+                                    inwardFilterTypeDropdownExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Vendor wise", color = Color(0xFF333333)) },
+                                onClick = {
+                                    viewModel.setInwardFilterType(com.attil.inventory.presentation.viewmodel.ReportViewModel.InwardFilterType.VENDOR)
+                                    inwardFilterTypeDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Filter Value Dropdown (shown only if filter type is selected)
+                    if (inwardFilterType != null) {
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = { inwardFilterValueDropdownExpanded = !inwardFilterValueDropdownExpanded },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    when (inwardFilterType) {
+                                        com.attil.inventory.presentation.viewmodel.ReportViewModel.InwardFilterType.CATEGORY -> Icons.Default.Category
+                                        com.attil.inventory.presentation.viewmodel.ReportViewModel.InwardFilterType.VENDOR -> Icons.Default.Store
+                                        else -> Icons.Default.FilterList
+                                    },
+                                    contentDescription = "Filter Value",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = when (inwardFilterType) {
+                                        com.attil.inventory.presentation.viewmodel.ReportViewModel.InwardFilterType.CATEGORY -> {
+                                            inwardFilterValue ?: "All Categories"
+                                        }
+                                        com.attil.inventory.presentation.viewmodel.ReportViewModel.InwardFilterType.VENDOR -> {
+                                            inwardFilterValue ?: "All Vendors"
+                                        }
+                                        null -> "Select Value"
+                                    },
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.weight(1f))
+                                Icon(
+                                    if (inwardFilterValueDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                    contentDescription = "Dropdown"
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = inwardFilterValueDropdownExpanded,
+                                onDismissRequest = { inwardFilterValueDropdownExpanded = false },
+                                modifier = Modifier
+                                    .fillMaxWidth(0.9f)
+                                    .background(Color.White)
+                            ) {
+                                // "All" option
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            when (inwardFilterType) {
+                                                com.attil.inventory.presentation.viewmodel.ReportViewModel.InwardFilterType.CATEGORY -> "All Categories"
+                                                com.attil.inventory.presentation.viewmodel.ReportViewModel.InwardFilterType.VENDOR -> "All Vendors"
+                                                else -> "All"
+                                            },
+                                            color = Color(0xFF333333)
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.setInwardFilterValue(null)
+                                        inwardFilterValueDropdownExpanded = false
+                                    }
+                                )
+
+                                // Show options based on filter type
+                                when (inwardFilterType) {
+                                    com.attil.inventory.presentation.viewmodel.ReportViewModel.InwardFilterType.CATEGORY -> {
+                                        categories.forEach { category ->
+                                            DropdownMenuItem(
+                                                text = { Text(category.name, color = Color(0xFF333333)) },
+                                                onClick = {
+                                                    viewModel.setInwardFilterValue(category.name)
+                                                    inwardFilterValueDropdownExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                    com.attil.inventory.presentation.viewmodel.ReportViewModel.InwardFilterType.VENDOR -> {
+                                        vendors.forEach { vendor ->
+                                            DropdownMenuItem(
+                                                text = { Text(vendor.name, color = Color(0xFF333333)) },
+                                                onClick = {
+                                                    viewModel.setInwardFilterValue(vendor.name)
+                                                    inwardFilterValueDropdownExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                    null -> {}
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Outward Report Filters
+                if (reportType == ReportType.OUTWARD) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Filters",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1976D2)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Filter Type Dropdown
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { filterTypeDropdownExpanded = !filterTypeDropdownExpanded },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Default.FilterList,
+                                contentDescription = "Filter Type",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = when (outwardFilterType) {
+                                    com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.CUISINE -> "Cuisine wise"
+                                    com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.CATEGORY -> "Category wise"
+                                    com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.PURPOSE -> "Purpose wise"
+                                    null -> "Select Filter Type"
+                                },
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Icon(
+                                if (filterTypeDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                contentDescription = "Dropdown"
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = filterTypeDropdownExpanded,
+                            onDismissRequest = { filterTypeDropdownExpanded = false },
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .background(Color.White)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Cuisine wise", color = Color(0xFF333333)) },
+                                onClick = {
+                                    viewModel.setOutwardFilterType(com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.CUISINE)
+                                    filterTypeDropdownExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Category wise", color = Color(0xFF333333)) },
+                                onClick = {
+                                    viewModel.setOutwardFilterType(com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.CATEGORY)
+                                    filterTypeDropdownExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Purpose wise", color = Color(0xFF333333)) },
+                                onClick = {
+                                    viewModel.setOutwardFilterType(com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.PURPOSE)
+                                    filterTypeDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Filter Value Dropdown (shown only if filter type is selected)
+                    if (outwardFilterType != null) {
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = { filterValueDropdownExpanded = !filterValueDropdownExpanded },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    when (outwardFilterType) {
+                                        com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.CUISINE -> Icons.Default.Restaurant
+                                        com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.CATEGORY -> Icons.Default.Category
+                                        com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.PURPOSE -> Icons.Default.Label
+                                        else -> Icons.Default.FilterList
+                                    },
+                                    contentDescription = "Filter Value",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = when (outwardFilterType) {
+                                        com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.CUISINE -> {
+                                            if (outwardFilterValue == null) "All Cuisines"
+                                            else cuisines.find { it.id == outwardFilterValue }?.name ?: "Select Cuisine"
+                                        }
+                                        com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.CATEGORY -> {
+                                            outwardFilterValue ?: "All Categories"
+                                        }
+                                        com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.PURPOSE -> {
+                                            outwardFilterValue ?: "All Purposes"
+                                        }
+                                        null -> "Select Value"
+                                    },
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.weight(1f))
+                                Icon(
+                                    if (filterValueDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                    contentDescription = "Dropdown"
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = filterValueDropdownExpanded,
+                                onDismissRequest = { filterValueDropdownExpanded = false },
+                                modifier = Modifier
+                                    .fillMaxWidth(0.9f)
+                                    .background(Color.White)
+                            ) {
+                                // "All" option
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            when (outwardFilterType) {
+                                                com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.CUISINE -> "All Cuisines"
+                                                com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.CATEGORY -> "All Categories"
+                                                com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.PURPOSE -> "All Purposes"
+                                                else -> "All"
+                                            },
+                                            color = Color(0xFF333333)
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.setOutwardFilterValue(null)
+                                        filterValueDropdownExpanded = false
+                                    }
+                                )
+
+                                // Show options based on filter type
+                                when (outwardFilterType) {
+                                    com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.CUISINE -> {
+                                        cuisines.forEach { cuisine ->
+                                            DropdownMenuItem(
+                                                text = { Text(cuisine.name, color = Color(0xFF333333)) },
+                                                onClick = {
+                                                    viewModel.setOutwardFilterValue(cuisine.id)
+                                                    filterValueDropdownExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                    com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.CATEGORY -> {
+                                        categories.forEach { category ->
+                                            DropdownMenuItem(
+                                                text = { Text(category.name, color = Color(0xFF333333)) },
+                                                onClick = {
+                                                    viewModel.setOutwardFilterValue(category.name)
+                                                    filterValueDropdownExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                    com.attil.inventory.presentation.viewmodel.ReportViewModel.OutwardFilterType.PURPOSE -> {
+                                        usages.forEach { usage ->
+                                            DropdownMenuItem(
+                                                text = { Text(usage.name, color = Color(0xFF333333)) },
+                                                onClick = {
+                                                    viewModel.setOutwardFilterValue(usage.name)
+                                                    filterValueDropdownExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                    null -> {}
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -186,6 +545,7 @@ fun InventoryReportsScreen(
                             ReportType.OUTWARD -> outwardReport?.let {
                                 viewModel.exportOutwardReportToPdf(context, it)
                             }
+                            ReportType.INDENT -> {} // Not applicable for this screen
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -212,6 +572,7 @@ fun InventoryReportsScreen(
                             ReportType.OUTWARD -> outwardReport?.let {
                                 viewModel.exportOutwardReportToCsv(context, it)
                             }
+                            ReportType.INDENT -> {} // Not applicable for this screen
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -315,6 +676,9 @@ fun InventoryReportsScreen(
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
+                    }
+                    ReportType.INDENT -> {
+                        // Not applicable for this screen - use IndentReportsScreen instead
                     }
                 }
             }
@@ -503,6 +867,7 @@ private fun OutwardItemCard(item: OutwardReportItem) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(modifier = Modifier.weight(1f)) {
+                    Text("Chef: ${item.chefName ?: "N/A"}", fontSize = 12.sp, color = Color(0xFF666666))
                     Text("Cuisine: ${item.cuisineName ?: "N/A"}", fontSize = 12.sp, color = Color(0xFF666666))
                     Text("Category: ${item.categoryName ?: "N/A"}", fontSize = 12.sp, color = Color(0xFF666666))
                     Text("Date: ${item.usageDate}", fontSize = 12.sp, color = Color(0xFF666666))

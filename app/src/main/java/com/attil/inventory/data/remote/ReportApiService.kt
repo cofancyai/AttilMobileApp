@@ -20,7 +20,18 @@ interface ReportApiService {
     @Headers("Content-Type: application/json")
     suspend fun getOutwardReportByDateRange(
         @Query("usage_date") dateRange: String,
-        @Query("select") select: String = "*,items(name,unit_of_measure,categories(name)),cuisines(name)",
+        @Query("cuisine_id") cuisineId: String? = null,
+        @Query("select") select: String = "*,items(name,unit_of_measure,categories(name)),cuisines(name),users(full_name)",
+        @Query("order") order: String = "usage_date.desc"
+    ): Response<List<Map<String, Any>>>
+
+    // CUISINE-WISE REPORT APIs
+    @GET("outward_items")
+    @Headers("Content-Type: application/json")
+    suspend fun getCuisineWiseReportByDateRange(
+        @Query("usage_date") dateRange: String,
+        @Query("cuisine_id") cuisineId: String? = null,
+        @Query("select") select: String = "*,items(name,unit_of_measure,categories(name)),cuisines(name),users(full_name)",
         @Query("order") order: String = "usage_date.desc"
     ): Response<List<Map<String, Any>>>
 

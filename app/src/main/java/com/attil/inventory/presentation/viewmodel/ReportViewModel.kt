@@ -14,7 +14,15 @@ import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
 import com.attil.inventory.data.model.reports.*
+import com.attil.inventory.data.model.management.Cuisine
+import com.attil.inventory.data.model.management.Category
+import com.attil.inventory.data.model.management.Usage
+import com.attil.inventory.data.model.management.Vendor
 import com.attil.inventory.data.repository.ReportRepository
+import com.attil.inventory.data.repository.CuisineRepository
+import com.attil.inventory.data.repository.CategoryRepository
+import com.attil.inventory.data.repository.UsageRepository
+import com.attil.inventory.data.repository.VendorRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +39,11 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ReportViewModel @Inject constructor(
-    private val reportRepository: ReportRepository
+    private val reportRepository: ReportRepository,
+    private val cuisineRepository: CuisineRepository,
+    private val categoryRepository: CategoryRepository,
+    private val usageRepository: UsageRepository,
+    private val vendorRepository: VendorRepository
 ) : ViewModel() {
 
     // Common state
@@ -48,12 +60,57 @@ class ReportViewModel @Inject constructor(
     private val _currentReportType = MutableStateFlow(ReportType.INWARD)
     val currentReportType: StateFlow<ReportType> = _currentReportType.asStateFlow()
 
+    // Master data for filtering
+    private val _cuisines = MutableStateFlow<List<Cuisine>>(emptyList())
+    val cuisines: StateFlow<List<Cuisine>> = _cuisines.asStateFlow()
+
+    private val _categories = MutableStateFlow<List<Category>>(emptyList())
+    val categories: StateFlow<List<Category>> = _categories.asStateFlow()
+
+    private val _usages = MutableStateFlow<List<Usage>>(emptyList())
+    val usages: StateFlow<List<Usage>> = _usages.asStateFlow()
+
+    private val _vendors = MutableStateFlow<List<Vendor>>(emptyList())
+    val vendors: StateFlow<List<Vendor>> = _vendors.asStateFlow()
+
+    // Inward Report Filter Type
+    enum class InwardFilterType {
+        CATEGORY, VENDOR
+    }
+
+    private val _inwardFilterType = MutableStateFlow<InwardFilterType?>(null)
+    val inwardFilterType: StateFlow<InwardFilterType?> = _inwardFilterType.asStateFlow()
+
+    private val _inwardFilterValue = MutableStateFlow<String?>(null)
+    val inwardFilterValue: StateFlow<String?> = _inwardFilterValue.asStateFlow()
+
+    // Outward Report Filter Type
+    enum class OutwardFilterType {
+        CUISINE, CATEGORY, PURPOSE
+    }
+
+    private val _outwardFilterType = MutableStateFlow<OutwardFilterType?>(null)
+    val outwardFilterType: StateFlow<OutwardFilterType?> = _outwardFilterType.asStateFlow()
+
+    private val _outwardFilterValue = MutableStateFlow<String?>(null)
+    val outwardFilterValue: StateFlow<String?> = _outwardFilterValue.asStateFlow()
+
     // Date filter state
     private val _startDate = MutableStateFlow(getDefaultStartDate())
     val startDate: StateFlow<String> = _startDate.asStateFlow()
 
     private val _endDate = MutableStateFlow(getDefaultEndDate())
     val endDate: StateFlow<String> = _endDate.asStateFlow()
+
+    // Outward Report Filters
+    private val _selectedCuisineId = MutableStateFlow<String?>(null)
+    val selectedCuisineId: StateFlow<String?> = _selectedCuisineId.asStateFlow()
+
+    private val _selectedCategoryName = MutableStateFlow<String?>(null)
+    val selectedCategoryName: StateFlow<String?> = _selectedCategoryName.asStateFlow()
+
+    private val _selectedUsageName = MutableStateFlow<String?>(null)
+    val selectedUsageName: StateFlow<String?> = _selectedUsageName.asStateFlow()
 
     // INWARD REPORT STATE
     private val _inwardReport = MutableStateFlow<InwardReport?>(null)
@@ -72,6 +129,102 @@ class ReportViewModel @Inject constructor(
     init {
         // Load default report on initialization
         loadInwardReport()
+        loadCuisines()
+        loadCategories()
+        loadUsages()
+        loadVendors()
+    }
+
+    private fun loadCuisines() {
+        viewModelScope.launch {
+            try {
+                cuisineRepository.getAllCuisines().collect { result ->
+                    result.fold(
+                        onSuccess = { cuisineList ->
+                            _cuisines.value = cuisineList
+                            Log.d("ReportViewModel", "Successfully loaded ${cuisineList.size} cuisines")
+                        },
+                        onFailure = { error ->
+                            Log.e("ReportViewModel", "Error loading cuisines: ${error.message}")
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("ReportViewModel", "Exception loading cuisines", e)
+            }
+        }
+    }
+
+    private fun loadCategories() {
+        viewModelScope.launch {
+            try {
+                categoryRepository.getAllCategories().collect { result ->
+                    result.fold(
+                        onSuccess = { categoryList ->
+                            _categories.value = categoryList
+                            Log.d("ReportViewModel", "Successfully loaded ${categoryList.size} categories")
+                        },
+                        onFailure = { error ->
+                            Log.e("ReportViewModel", "Error loading categories: ${error.message}")
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("ReportViewModel", "Exception loading categories", e)
+            }
+        }
+    }
+
+    private fun loadUsages() {
+        viewModelScope.launch {
+            try {
+                usageRepository.getAllUsages().collect { result ->
+                    result.fold(
+                        onSuccess = { usageList ->
+                            _usages.value = usageList.filter { it.isActive }
+                            Log.d("ReportViewModel", "Successfully loaded ${usageList.size} usages")
+                        },
+                        onFailure = { error ->
+                            Log.e("ReportViewModel", "Error loading usages: ${error.message}")
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("ReportViewModel", "Exception loading usages", e)
+            }
+        }
+    }
+
+    private fun loadVendors() {
+        viewModelScope.launch {
+            try {
+                vendorRepository.getAllVendors().collect { result ->
+                    result.fold(
+                        onSuccess = { vendorList ->
+                            _vendors.value = vendorList
+                            Log.d("ReportViewModel", "Successfully loaded ${vendorList.size} vendors")
+                        },
+                        onFailure = { error ->
+                            Log.e("ReportViewModel", "Error loading vendors: ${error.message}")
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("ReportViewModel", "Exception loading vendors", e)
+            }
+        }
+    }
+
+    // INWARD FILTER MANAGEMENT
+    fun setInwardFilterType(filterType: InwardFilterType?) {
+        _inwardFilterType.value = filterType
+        _inwardFilterValue.value = null // Reset filter value when type changes
+        loadInwardReport()
+    }
+
+    fun setInwardFilterValue(value: String?) {
+        _inwardFilterValue.value = value
+        loadInwardReport()
     }
 
     // REPORT TYPE MANAGEMENT
@@ -80,7 +233,56 @@ class ReportViewModel @Inject constructor(
         when (reportType) {
             ReportType.INWARD -> loadInwardReport()
             ReportType.OUTWARD -> loadOutwardReport()
+            ReportType.INDENT -> {} // Not handled by this ViewModel - use IndentViewModel
         }
+    }
+
+    // OUTWARD FILTER MANAGEMENT
+    fun setSelectedCuisineId(cuisineId: String?) {
+        _selectedCuisineId.value = cuisineId
+        loadOutwardReport()
+    }
+
+    fun setSelectedCategoryName(categoryName: String?) {
+        _selectedCategoryName.value = categoryName
+        loadOutwardReport()
+    }
+
+    fun setSelectedUsageName(usageName: String?) {
+        _selectedUsageName.value = usageName
+        loadOutwardReport()
+    }
+
+    // New filter type methods
+    fun setOutwardFilterType(filterType: OutwardFilterType?) {
+        _outwardFilterType.value = filterType
+        _outwardFilterValue.value = null // Reset filter value when type changes
+
+        // Clear all filters
+        _selectedCuisineId.value = null
+        _selectedCategoryName.value = null
+        _selectedUsageName.value = null
+
+        loadOutwardReport()
+    }
+
+    fun setOutwardFilterValue(value: String?) {
+        _outwardFilterValue.value = value
+
+        // Set the appropriate filter based on filter type
+        when (_outwardFilterType.value) {
+            OutwardFilterType.CUISINE -> _selectedCuisineId.value = value
+            OutwardFilterType.CATEGORY -> _selectedCategoryName.value = value
+            OutwardFilterType.PURPOSE -> _selectedUsageName.value = value
+            null -> {
+                // Clear all filters
+                _selectedCuisineId.value = null
+                _selectedCategoryName.value = null
+                _selectedUsageName.value = null
+            }
+        }
+
+        loadOutwardReport()
     }
 
     // DATE MANAGEMENT
@@ -104,12 +306,19 @@ class ReportViewModel @Inject constructor(
         when (_currentReportType.value) {
             ReportType.INWARD -> loadInwardReport()
             ReportType.OUTWARD -> loadOutwardReport()
+            ReportType.INDENT -> {} // Not handled by this ViewModel - use IndentViewModel
         }
     }
 
     // INWARD REPORT METHODS
     fun loadInwardReport() {
         viewModelScope.launch {
+            Log.d("ReportViewModel", "=== Starting loadInwardReport ===")
+            Log.d("ReportViewModel", "Start Date: ${_startDate.value}")
+            Log.d("ReportViewModel", "End Date: ${_endDate.value}")
+            Log.d("ReportViewModel", "Filter Type: ${_inwardFilterType.value}")
+            Log.d("ReportViewModel", "Filter Value: ${_inwardFilterValue.value}")
+
             _isLoading.value = true
             _errorMessage.value = null
 
@@ -118,25 +327,41 @@ class ReportViewModel @Inject constructor(
                 endDate = _endDate.value
             )
 
+            // Determine category and vendor filters based on filter type
+            val categoryFilter = if (_inwardFilterType.value == InwardFilterType.CATEGORY) {
+                _inwardFilterValue.value
+            } else null
+
+            val vendorFilter = if (_inwardFilterType.value == InwardFilterType.VENDOR) {
+                _inwardFilterValue.value
+            } else null
+
+            Log.d("ReportViewModel", "Category Filter: $categoryFilter")
+            Log.d("ReportViewModel", "Vendor Filter: $vendorFilter")
+
             try {
-                reportRepository.getInwardReport(filter).collect { result ->
+                reportRepository.getInwardReport(
+                    filter = filter,
+                    categoryName = categoryFilter,
+                    vendorName = vendorFilter
+                ).collect { result ->
                     result.fold(
                         onSuccess = { report ->
                             _inwardReport.value = report
                             _isLoading.value = false
-                            Log.d("ReportViewModel", "Inward report loaded successfully: ${report.items.size} items")
+                            Log.d("ReportViewModel", "✅ Inward report loaded successfully: ${report.items.size} items")
                         },
                         onFailure = { error ->
                             _errorMessage.value = error.message ?: "Failed to load inward report"
                             _isLoading.value = false
-                            Log.e("ReportViewModel", "Error loading inward report: ${error.message}")
+                            Log.e("ReportViewModel", "❌ Error loading inward report: ${error.message}")
                         }
                     )
                 }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Unexpected error occurred"
                 _isLoading.value = false
-                Log.e("ReportViewModel", "Exception loading inward report", e)
+                Log.e("ReportViewModel", "❌ Exception loading inward report", e)
             }
         }
     }
@@ -166,9 +391,16 @@ class ReportViewModel @Inject constructor(
         }
     }
 
-    // OUTWARD REPORT METHODS
+    // OUTWARD REPORT METHODS WITH FILTERS
     fun loadOutwardReport() {
         viewModelScope.launch {
+            Log.d("ReportViewModel", "=== Starting loadOutwardReport ===")
+            Log.d("ReportViewModel", "Start Date: ${_startDate.value}")
+            Log.d("ReportViewModel", "End Date: ${_endDate.value}")
+            Log.d("ReportViewModel", "Cuisine Filter: ${_selectedCuisineId.value}")
+            Log.d("ReportViewModel", "Category Filter: ${_selectedCategoryName.value}")
+            Log.d("ReportViewModel", "Purpose Filter: ${_selectedUsageName.value}")
+
             _isLoading.value = true
             _errorMessage.value = null
 
@@ -178,24 +410,31 @@ class ReportViewModel @Inject constructor(
             )
 
             try {
-                reportRepository.getOutwardReport(filter).collect { result ->
+                reportRepository.getOutwardReport(
+                    filter = filter,
+                    cuisineId = _selectedCuisineId.value,
+                    categoryName = _selectedCategoryName.value,
+                    purposeName = _selectedUsageName.value
+                ).collect { result ->
                     result.fold(
                         onSuccess = { report ->
                             _outwardReport.value = report
                             _isLoading.value = false
-                            Log.d("ReportViewModel", "Outward report loaded successfully: ${report.items.size} items")
+                            Log.d("ReportViewModel", "✅ Outward report loaded successfully: ${report.items.size} items (filters: cuisine=${_selectedCuisineId.value}, category=${_selectedCategoryName.value}, purpose=${_selectedUsageName.value})")
                         },
                         onFailure = { error ->
                             _errorMessage.value = error.message ?: "Failed to load outward report"
                             _isLoading.value = false
-                            Log.e("ReportViewModel", "Error loading outward report: ${error.message}")
+                            Log.e("ReportViewModel", "❌ Error loading outward report: ${error.message}")
+                            Log.e("ReportViewModel", "Error stack trace:", error)
                         }
                     )
                 }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Unexpected error occurred"
                 _isLoading.value = false
-                Log.e("ReportViewModel", "Exception loading outward report", e)
+                Log.e("ReportViewModel", "❌ Exception loading outward report: ${e.message}")
+                Log.e("ReportViewModel", "Exception stack trace:", e)
             }
         }
     }
@@ -377,17 +616,10 @@ class ReportViewModel @Inject constructor(
             try {
                 Log.d("ReportViewModel", "Creating comprehensive inward PDF with ${report.items.size} items")
 
-                // File path logic
-                val file = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-                        ?: File(context.filesDir, "documents")
-                    if (!documentsDir.exists()) documentsDir.mkdirs()
-                    File(documentsDir, fileName)
-                } else {
-                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                    if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                    File(downloadsDir, fileName)
-                }
+                // Save to Downloads folder on all Android versions
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val file = File(downloadsDir, fileName)
 
                 val pdfDocument = PdfDocument()
                 val pageInfo = PdfDocument.PageInfo.Builder(842, 595, 1).create() // A4 Landscape
@@ -630,17 +862,10 @@ class ReportViewModel @Inject constructor(
             try {
                 Log.d("ReportViewModel", "Creating comprehensive outward PDF with ${report.items.size} items")
 
-                // File path logic
-                val file = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-                        ?: File(context.filesDir, "documents")
-                    if (!documentsDir.exists()) documentsDir.mkdirs()
-                    File(documentsDir, fileName)
-                } else {
-                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                    if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                    File(downloadsDir, fileName)
-                }
+                // Save to Downloads folder on all Android versions
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val file = File(downloadsDir, fileName)
 
                 val pdfDocument = PdfDocument()
                 val pageInfo = PdfDocument.PageInfo.Builder(842, 595, 1).create() // A4 Landscape
@@ -759,19 +984,19 @@ class ReportViewModel @Inject constructor(
                 val rowHeight = 18f
                 val headerHeight = 22f
 
-                // Optimized column definitions with cost information
+                // Optimized column definitions with cost information and user
                 val totalTableWidth = availableWidth - 10f
                 val columns = arrayOf(
                     Pair("No", 30f),
-                    Pair("Item Name", 110f),
-                    Pair("Category", 65f),
-                    Pair("Cuisine", 65f),
-                    Pair("Date", 60f),
+                    Pair("Item Name", 100f),
+                    Pair("Category", 60f),
+                    Pair("Cuisine", 60f),
+                    Pair("Date & Time", 70f),
                     Pair("Qty", 35f),
                     Pair("Unit", 40f),
-                    Pair("Cost/Unit", 50f),
-                    Pair("Total Cost", 60f),
-                    Pair("Method", 65f)
+                    Pair("Total Cost", 55f),
+                    Pair("Method", 60f),
+                    Pair("User", 70f)
                 )
 
                 // Auto-adjust column widths to fit available space
@@ -823,7 +1048,7 @@ class ReportViewModel @Inject constructor(
                         return@forEachIndexed
                     }
 
-                    // Row data with calculated costs
+                    // Row data with calculated costs and user name
                     val rowData = arrayOf(
                         (index + 1).toString(),
                         autoFitText(paint, item.itemName, adjustedColumns[1].second - 8f),
@@ -832,9 +1057,9 @@ class ReportViewModel @Inject constructor(
                         autoFitText(paint, item.usageDate, adjustedColumns[4].second - 8f),
                         String.format("%.1f", item.outwardQuantity),
                         autoFitText(paint, item.unitOfMeasure, adjustedColumns[6].second - 8f),
-                        String.format("%.2f", item.calculatedCostPerUnit),
                         String.format("%.2f", item.calculatedTotalCost),
-                        autoFitText(paint, item.costCalculationMethod, adjustedColumns[9].second - 8f)
+                        autoFitText(paint, item.costCalculationMethod, adjustedColumns[8].second - 8f),
+                        autoFitText(paint, item.chefName ?: "N/A", adjustedColumns[9].second - 8f)
                     )
 
                     // Alternate row background
@@ -907,17 +1132,10 @@ class ReportViewModel @Inject constructor(
                     appendLine("Report Generated,${getCurrentDateTime()}")
                 }
 
-                // Save file
-                val file = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-                        ?: File(context.filesDir, "documents")
-                    if (!documentsDir.exists()) documentsDir.mkdirs()
-                    File(documentsDir, fileName)
-                } else {
-                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                    if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                    File(downloadsDir, fileName)
-                }
+                // Save to Downloads folder on all Android versions
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val file = File(downloadsDir, fileName)
 
                 file.writeText(csvContent)
 
@@ -935,11 +1153,11 @@ class ReportViewModel @Inject constructor(
             try {
                 val csvContent = buildString {
                     // Headers
-                    appendLine("S.No,Item Name,Category,Cuisine,Usage Date,Quantity,Unit,Calculated Cost Per Unit,Total Calculated Cost,Cost Calculation Method,Purpose,Source Type,Notes,Created By")
+                    appendLine("S.No,Item Name,Category,Cuisine,Date & Time,Quantity,Unit,Total Cost,Cost Calculation Method,User (Chef Name)")
 
                     // Data rows
                     report.items.forEachIndexed { index, item ->
-                        appendLine("${index + 1},\"${item.itemName}\",\"${item.categoryName ?: ""}\",\"${item.cuisineName ?: ""}\",\"${item.usageDate}\",${item.outwardQuantity},\"${item.unitOfMeasure}\",${item.calculatedCostPerUnit},${item.calculatedTotalCost},\"${item.costCalculationMethod}\",\"${item.purpose ?: ""}\",\"${item.sourceType ?: ""}\",\"${item.notes ?: ""}\",\"${item.createdBy ?: ""}\"")
+                        appendLine("${index + 1},\"${item.itemName}\",\"${item.categoryName ?: ""}\",\"${item.cuisineName ?: ""}\",\"${item.usageDate}\",${item.outwardQuantity},\"${item.unitOfMeasure}\",${item.calculatedTotalCost},\"${item.costCalculationMethod}\",\"${item.chefName ?: "N/A"}\"")
                     }
 
                     // Comprehensive Summary
@@ -965,17 +1183,10 @@ class ReportViewModel @Inject constructor(
                     appendLine("Report Generated,${getCurrentDateTime()}")
                 }
 
-                // Save file
-                val file = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val documentsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
-                        ?: File(context.filesDir, "documents")
-                    if (!documentsDir.exists()) documentsDir.mkdirs()
-                    File(documentsDir, fileName)
-                } else {
-                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                    if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                    File(downloadsDir, fileName)
-                }
+                // Save to Downloads folder on all Android versions
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val file = File(downloadsDir, fileName)
 
                 file.writeText(csvContent)
 
@@ -992,7 +1203,7 @@ class ReportViewModel @Inject constructor(
     private fun openPdfFile(context: Context, file: File) {
         try {
             val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                FileProvider.getUriForFile(context, "com.attil.inventory.provider", file)
+                FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
             } else {
                 Uri.fromFile(file)
             }
@@ -1006,13 +1217,14 @@ class ReportViewModel @Inject constructor(
             context.startActivity(intent)
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Error opening PDF file", e)
+            Toast.makeText(context, "No PDF viewer app found", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun openCsvFile(context: Context, file: File) {
         try {
             val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                FileProvider.getUriForFile(context, "com.attil.inventory.provider", file)
+                FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
             } else {
                 Uri.fromFile(file)
             }
@@ -1026,6 +1238,7 @@ class ReportViewModel @Inject constructor(
             context.startActivity(intent)
         } catch (e: Exception) {
             Log.e("ReportViewModel", "Error opening CSV file", e)
+            Toast.makeText(context, "No CSV/Excel viewer app found", Toast.LENGTH_SHORT).show()
         }
     }
 

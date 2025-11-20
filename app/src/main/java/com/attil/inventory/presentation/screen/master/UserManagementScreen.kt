@@ -4,9 +4,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +19,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.attil.inventory.data.model.master.User
 import com.attil.inventory.presentation.viewmodel.UserViewModel
@@ -28,11 +33,11 @@ fun UserManagementScreen(
 ) {
     val users by viewModel.filteredUsers.collectAsState()
     val selectedUser by viewModel.selectedUser.collectAsState()
+    val cuisines by viewModel.cuisines.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val successMessage by viewModel.successMessage.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val cuisines by viewModel.cuisines.collectAsState()
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
@@ -175,7 +180,8 @@ fun UserManagementScreen(
             cuisines = cuisines,
             onDismiss = { showCreateDialog = false },
             onConfirm = { username, password, fullName, phone, cuisineIds ->
-                viewModel.createUser(username, "$username@restaurant.com", password, fullName, phone, null, true, cuisineIds)
+                // Pass all cuisine IDs to ViewModel for junction table management
+                viewModel.createUser(username, "$username@restaurant.com", password, fullName, phone, null, cuisineIds.firstOrNull(), true, cuisineIds)
                 showCreateDialog = false
             }
         )
@@ -189,7 +195,8 @@ fun UserManagementScreen(
             onDismiss = { showEditDialog = false },
             onConfirm = { username, _, fullName, phone, cuisineIds ->
                 selectedUser?.let { user ->
-                    viewModel.updateUser(user.id, username, user.email, fullName, phone, user.roleId, user.isActive, cuisineIds)
+                    // Pass all cuisine IDs to ViewModel for junction table management
+                    viewModel.updateUser(user.id, username, user.email, fullName, phone, user.roleId, cuisineIds.firstOrNull(), user.isActive, cuisineIds)
                 }
                 showEditDialog = false
             }
@@ -356,24 +363,22 @@ fun DeleteConfirmDialog(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserDialog(
     title: String,
     user: User?,
     cuisines: List<com.attil.inventory.data.model.management.Cuisine>,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String, String?, List<String>?) -> Unit
+    onConfirm: (String, String, String, String?, List<String>) -> Unit
 ) {
     var username by remember { mutableStateOf(user?.username ?: "") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf(user?.fullName ?: "") }
     var phone by remember { mutableStateOf(user?.phone ?: "") }
+    var selectedCuisineIds by remember { mutableStateOf(user?.getCuisineIds() ?: emptyList()) }
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
-    var selectedCuisineIds by remember { mutableStateOf(user?.cuisineIds ?: emptyList()) }
-    var cuisineExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -385,6 +390,9 @@ fun UserDialog(
         },
         text = {
             Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Username
@@ -478,97 +486,71 @@ fun UserDialog(
                     )
                 )
 
-                // Cuisine Selection
-                Text(
-                    text = "Assign Cuisines (for Chef users)",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color.Gray,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-
-                if (cuisines.isEmpty()) {
+                // Assign Cuisines (Multiple Selection with Checkboxes)
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(
-                        text = "No cuisines available. Please add cuisines first.",
-                        color = Color.Red,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 4.dp)
+                        text = "Assign Cuisines (Optional)",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.Black,
+                        modifier = Modifier.padding(bottom = 8.dp)
                     )
-                } else {
-                    // Cuisine dropdown
-                    ExposedDropdownMenuBox(
-                        expanded = cuisineExpanded,
-                        onExpandedChange = { cuisineExpanded = !cuisineExpanded }
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        OutlinedTextField(
-                            value = if (selectedCuisineIds.isEmpty()) {
-                                "Select Cuisines (Optional)"
-                            } else {
-                                "${selectedCuisineIds.size} cuisine(s) selected"
-                            },
-                            onValueChange = { },
-                            readOnly = true,
-                            label = { Text("Cuisines", color = Color.Black) },
-                            trailingIcon = {
-                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = cuisineExpanded)
-                            },
+                        Column(
                             modifier = Modifier
-                                .menuAnchor()
-                                .fillMaxWidth(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.Black,
-                                unfocusedTextColor = Color.Black,
-                                focusedBorderColor = Color(0xFF667eea),
-                                focusedLabelColor = Color(0xFF667eea)
-                            )
-                        )
-                        ExposedDropdownMenu(
-                            expanded = cuisineExpanded,
-                            onDismissRequest = { cuisineExpanded = false }
+                                .padding(12.dp)
+                                .verticalScroll(rememberScrollState())
                         ) {
-                            cuisines.forEach { cuisine ->
-                                val isSelected = selectedCuisineIds.contains(cuisine.id)
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = cuisine.name,
-                                                color = Color.Black,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                            )
-                                            if (isSelected) {
-                                                Icon(
-                                                    Icons.Default.CheckCircle,
-                                                    contentDescription = "Selected",
-                                                    tint = Color(0xFF4CAF50),
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            }
-                                        }
-                                    },
-                                    onClick = {
-                                        selectedCuisineIds = if (isSelected) {
-                                            selectedCuisineIds - cuisine.id!!
-                                        } else {
-                                            selectedCuisineIds + cuisine.id!!
-                                        }
-                                    }
+                            if (cuisines.isEmpty()) {
+                                Text(
+                                    text = "No cuisines available",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray,
+                                    modifier = Modifier.padding(8.dp)
                                 )
+                            } else {
+                                cuisines.forEach { cuisine ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Checkbox(
+                                            checked = selectedCuisineIds.contains(cuisine.id),
+                                            onCheckedChange = { isChecked ->
+                                                cuisine.id?.let { id ->
+                                                    selectedCuisineIds = if (isChecked) {
+                                                        selectedCuisineIds + id
+                                                    } else {
+                                                        selectedCuisineIds - id
+                                                    }
+                                                }
+                                            },
+                                            colors = CheckboxDefaults.colors(
+                                                checkedColor = Color(0xFF1976D2),
+                                                uncheckedColor = Color.Gray
+                                            )
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = cuisine.name,
+                                            fontSize = 14.sp,
+                                            color = Color.Black
+                                        )
+                                    }
+                                }
                             }
                         }
-                    }
-
-                    // Display selected cuisines
-                    if (selectedCuisineIds.isNotEmpty()) {
-                        Text(
-                            text = "Selected: ${cuisines.filter { selectedCuisineIds.contains(it.id) }.joinToString(", ") { it.name }}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF4CAF50),
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
                     }
                 }
             }
@@ -581,13 +563,7 @@ fun UserDialog(
                     val isValidForEdit = user != null && username.isNotBlank() && fullName.isNotBlank()
 
                     if (isValidForCreate || isValidForEdit) {
-                        onConfirm(
-                            username,
-                            password,
-                            fullName,
-                            phone.takeIf { it.isNotBlank() },
-                            selectedCuisineIds.takeIf { it.isNotEmpty() }
-                        )
+                        onConfirm(username, password, fullName, phone.takeIf { it.isNotBlank() }, selectedCuisineIds)
                     }
                 },
                 enabled = if (user == null) {

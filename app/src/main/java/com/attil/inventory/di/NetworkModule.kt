@@ -207,8 +207,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideIndentRepository(apiService: IndentApiService): IndentRepository =
-        IndentRepository(apiService)
+    fun provideIndentRepository(
+        apiService: IndentApiService,
+        userRepository: UserRepository
+    ): IndentRepository =
+        IndentRepository(apiService, userRepository)
 
     // Report Services
     @Provides

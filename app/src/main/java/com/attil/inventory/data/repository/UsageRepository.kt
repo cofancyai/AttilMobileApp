@@ -14,7 +14,7 @@ class UsageRepository @Inject constructor(
     private val apiService: UsageApiService
 ) {
     fun getAllUsages(): Flow<Result<List<Usage>>> = flow {
-        try {
+        val result = try {
             println("UsageRepository: Making API call to get all usages")
             val response = apiService.getAllUsages()
             println("UsageRepository: Response code: ${response.code()}")
@@ -22,21 +22,22 @@ class UsageRepository @Inject constructor(
             if (response.isSuccessful) {
                 val usages = response.body() ?: emptyList()
                 println("UsageRepository: Success - Got ${usages.size} usages")
-                emit(Result.success(usages))
+                Result.success(usages)
             } else {
                 val errorBody = response.errorBody()?.string()
                 println("UsageRepository: API Error - Code: ${response.code()}, Body: $errorBody")
-                emit(Result.failure(Exception("API Error ${response.code()}: $errorBody")))
+                Result.failure(Exception("API Error ${response.code()}: $errorBody"))
             }
         } catch (e: Exception) {
             println("UsageRepository: Exception in getAllUsages - ${e.message}")
             e.printStackTrace()
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     fun createUsage(request: CreateUsageRequest): Flow<Result<Usage>> = flow {
-        try {
+        val result = try {
             println("UsageRepository: Creating usage - ${request.name}")
             val requestMap = hashMapOf<String, Any>(
                 "name" to request.name,
@@ -53,25 +54,26 @@ class UsageRepository @Inject constructor(
                 val createdUsage = response.body()?.firstOrNull()
                 if (createdUsage != null) {
                     println("UsageRepository: Successfully created usage: ${createdUsage.name}")
-                    emit(Result.success(createdUsage))
+                    Result.success(createdUsage)
                 } else {
                     println("UsageRepository: Response body was empty")
-                    emit(Result.failure(Exception("Empty response from server")))
+                    Result.failure(Exception("Empty response from server"))
                 }
             } else {
                 val errorBody = response.errorBody()?.string()
                 println("UsageRepository: Create API Error - Code: ${response.code()}, Body: $errorBody")
-                emit(Result.failure(Exception("Create API Error ${response.code()}: $errorBody")))
+                Result.failure(Exception("Create API Error ${response.code()}: $errorBody"))
             }
         } catch (e: Exception) {
             println("UsageRepository: Exception in createUsage - ${e.message}")
             e.printStackTrace()
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     fun updateUsage(id: String, request: UpdateUsageRequest): Flow<Result<Usage>> = flow {
-        try {
+        val result = try {
             println("UsageRepository: Updating usage with id: $id")
             val requestMap = hashMapOf<String, Any>(
                 "name" to request.name,
@@ -86,41 +88,43 @@ class UsageRepository @Inject constructor(
                 val updatedUsage = response.body()?.firstOrNull()
                 if (updatedUsage != null) {
                     println("UsageRepository: Successfully updated usage: ${updatedUsage.name}")
-                    emit(Result.success(updatedUsage))
+                    Result.success(updatedUsage)
                 } else {
                     println("UsageRepository: Update response body was empty")
-                    emit(Result.failure(Exception("Failed to update usage")))
+                    Result.failure(Exception("Failed to update usage"))
                 }
             } else {
                 val errorBody = response.errorBody()?.string()
                 println("UsageRepository: Update API Error - Code: ${response.code()}, Body: $errorBody")
-                emit(Result.failure(Exception("Failed to update usage: ${response.code()} - $errorBody")))
+                Result.failure(Exception("Failed to update usage: ${response.code()} - $errorBody"))
             }
         } catch (e: Exception) {
             println("UsageRepository: Exception in updateUsage - ${e.message}")
             e.printStackTrace()
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     fun deleteUsage(id: String): Flow<Result<Unit>> = flow {
-        try {
+        val result = try {
             println("UsageRepository: Deleting usage with id: $id")
             val response = apiService.deleteUsage("eq.$id")
             println("UsageRepository: Delete response code: ${response.code()}")
 
             if (response.isSuccessful) {
                 println("UsageRepository: Successfully deleted usage")
-                emit(Result.success(Unit))
+                Result.success(Unit)
             } else {
                 val errorBody = response.errorBody()?.string()
                 println("UsageRepository: Delete API Error - Code: ${response.code()}, Body: $errorBody")
-                emit(Result.failure(Exception("Failed to delete usage: ${response.code()} - $errorBody")))
+                Result.failure(Exception("Failed to delete usage: ${response.code()} - $errorBody"))
             }
         } catch (e: Exception) {
             println("UsageRepository: Exception in deleteUsage - ${e.message}")
             e.printStackTrace()
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 }
