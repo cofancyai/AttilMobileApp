@@ -127,7 +127,7 @@ fun IndentManagementScreen(
                 val totalCount = uiState.indents.size
                 val fulfilledCount = uiState.indents.count { it.status == "Fulfilled" }
                 val verifiedCount = uiState.indents.count { it.status == "Received" }
-                val partiallyVerifiedCount = uiState.indents.count { it.status == "Partially Completed" }
+                val partiallyVerifiedCount = uiState.indents.count { it.status == "Partially Received" }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -220,11 +220,11 @@ fun IndentManagementScreen(
                     // Partially Verified Button
                     Button(
                         onClick = {
-                            selectedStatusFilter = if (selectedStatusFilter == "Partially Completed") "All" else "Partially Completed"
+                            selectedStatusFilter = if (selectedStatusFilter == "Partially Received") "All" else "Partially Received"
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedStatusFilter == "Partially Completed") Color(0xFFFF8F00) else Color(0xFFE0E0E0)
+                            containerColor = if (selectedStatusFilter == "Partially Received") Color(0xFFFF8F00) else Color(0xFFE0E0E0)
                         ),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
                     ) {
@@ -235,12 +235,12 @@ fun IndentManagementScreen(
                                 text = "$partiallyVerifiedCount",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (selectedStatusFilter == "Partially Completed") Color.White else Color(0xFF333333)
+                                color = if (selectedStatusFilter == "Partially Received") Color.White else Color(0xFF333333)
                             )
                             Text(
                                 text = "Partial",
                                 fontSize = 9.sp,
-                                color = if (selectedStatusFilter == "Partially Completed") Color.White else Color(0xFF666666)
+                                color = if (selectedStatusFilter == "Partially Received") Color.White else Color(0xFF666666)
                             )
                         }
                     }
@@ -1046,7 +1046,6 @@ private fun StatusChip(status: String) {
         "Fulfilled" -> Color(0xFFE1F5FE) to Color(0xFF0288D1)
         "Received" -> Color(0xFFE8F5E8) to Color(0xFF2E7D32)
         "Partially Received" -> Color(0xFFFFF3E0) to Color(0xFFFF8F00)
-        "Partially Completed" -> Color(0xFFFFF3E0) to Color(0xFFFF8F00)
         "Not Received" -> Color(0xFFFFEBEE) to Color(0xFFD32F2F)
         else -> Color(0xFFF5F5F5) to Color(0xFF666666)
     }
