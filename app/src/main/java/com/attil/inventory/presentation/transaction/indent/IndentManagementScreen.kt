@@ -913,7 +913,7 @@ private fun VerificationDialog(
     onPartiallyReceived: (List<Pair<String, Double>>) -> Unit = { _ -> },
     onReceivedQuantityChange: (String, Double) -> Unit = { _, _ -> }
 ) {
-    var verificationMode by remember { mutableStateOf<String?>(null) } // null, "full", "partial"
+    var showUnverifiedDialog by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -1015,62 +1015,53 @@ private fun VerificationDialog(
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = if (verificationMode == "partial") Color(0xFFFFF8E1) else Color(0xFFF8F9FA)
+                                containerColor = if (item.isReceived) Color(0xFFE8F5E8) else Color(0xFFF8F9FA)
                             )
                         ) {
-                            Column(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp)
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = item.indentItem.items?.name ?: "Unknown Item",
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF333333)
+                                Checkbox(
+                                    checked = item.isReceived,
+                                    onCheckedChange = { checked ->
+                                        onItemVerificationChange(item.indentItem.id!!, checked)
+                                    },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = Color(0xFF4CAF50)
+                                    )
                                 )
 
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = item.indentItem.items?.name ?: "Unknown Item",
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF333333)
+                                    )
 
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "Requested: ${item.indentItem.requestedQuantity} ${item.indentItem.unitOfMeasure}",
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF666666)
-                                    )
-                                    Text(
-                                        text = "•",
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF666666)
-                                    )
-                                    Text(
-                                        text = "Fulfilled: ${item.indentItem.fulfilledQuantity} ${item.indentItem.unitOfMeasure}",
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF4CAF50),
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-
-                                // Show text input only in partial mode
-                                if (verificationMode == "partial") {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = if (item.receivedQuantity > 0) item.receivedQuantity.toString() else "",
-                                        onValueChange = { value ->
-                                            val quantity = value.toDoubleOrNull() ?: 0.0
-                                            onReceivedQuantityChange(item.indentItem.id!!, quantity)
-                                        },
-                                        label = { Text("Received Quantity") },
-                                        placeholder = { Text("Enter quantity received") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true,
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = Color(0xFF1976D2),
-                                            focusedLabelColor = Color(0xFF1976D2)
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Requested: ${item.indentItem.requestedQuantity} ${item.indentItem.unitOfMeasure}",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF666666)
                                         )
-                                    )
+                                        Text(
+                                            text = "•",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF666666)
+                                        )
+                                        Text(
+                                            text = "Fulfilled: ${item.indentItem.fulfilledQuantity} ${item.indentItem.unitOfMeasure}",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF4CAF50),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1093,60 +1084,238 @@ private fun VerificationDialog(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (verificationMode == null) {
-                    // Show mode selection buttons
-                    Button(
-                        onClick = {
-                            verificationMode = "full"
+                val receivedCount = verificationItems.count { it.isReceived }
+                val totalCount = verificationItems.size
+                val unverifiedItems = verificationItems.filter { !it.isReceived }
+
+                Button(
+                    onClick = {
+                        if (unverifiedItems.isEmpty()) {
+                            // All items checked - full verification
                             onFullyReceived()
-                        },
-                        enabled = !isVerifying && verificationItems.isNotEmpty(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF4CAF50)
-                        )
-                    ) {
-                        Text("Fully Received", color = Color.White, fontSize = 13.sp)
-                    }
-
-                    Button(
-                        onClick = { verificationMode = "partial" },
-                        enabled = !isVerifying && verificationItems.isNotEmpty(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFFF9800)
-                        )
-                    ) {
-                        Text("Partially Received", color = Color.White, fontSize = 13.sp)
-                    }
-                } else if (verificationMode == "partial") {
-                    // Show confirm button for partial verification
-                    val receivedItems = verificationItems.filter { it.receivedQuantity > 0 }
-
-                    Button(
-                        onClick = {
-                            val itemsWithQuantities = verificationItems
-                                .filter { it.receivedQuantity > 0 }
-                                .map { it.indentItem.id!! to it.receivedQuantity }
-                            onPartiallyReceived(itemsWithQuantities)
-                        },
-                        enabled = !isVerifying && receivedItems.isNotEmpty(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF4CAF50)
-                        )
-                    ) {
-                        if (isVerifying) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                        } else {
+                            // Some items unchecked - show unverified dialog
+                            showUnverifiedDialog = true
                         }
-                        Text(
-                            text = if (receivedItems.isEmpty()) "No Items Entered" else "Confirm (${receivedItems.size} items)",
+                    },
+                    enabled = !isVerifying && receivedCount > 0,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4CAF50)
+                    )
+                ) {
+                    if (isVerifying) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
                             color = Color.White,
-                            fontSize = 13.sp
+                            strokeWidth = 2.dp
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
                     }
+                    Text(
+                        text = "Accept ($receivedCount/$totalCount)",
+                        color = Color.White
+                    )
+                }
+
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel", color = Color(0xFF666666))
+                }
+            }
+        }
+    )
+
+    // Second dialog for unverified items
+    if (showUnverifiedDialog) {
+        val unverifiedItems = verificationItems.filter { !it.isReceived }
+        UnverifiedItemsDialog(
+            items = unverifiedItems,
+            onDismiss = { showUnverifiedDialog = false },
+            onSubmit = { itemsData ->
+                onPartiallyReceived(itemsData)
+                showUnverifiedDialog = false
+            }
+        )
+    }
+}
+
+// Data class to hold unverified item data
+data class UnverifiedItemData(
+    val itemId: String,
+    val reason: String, // "Not Received" or "Partially Received"
+    val receivedQuantity: Double = 0.0
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UnverifiedItemsDialog(
+    items: List<VerificationItem>,
+    onDismiss: () -> Unit,
+    onSubmit: (List<Pair<String, Double>>) -> Unit
+) {
+    val itemsState = remember {
+        mutableStateMapOf<String, UnverifiedItemData>().apply {
+            items.forEach { item ->
+                put(
+                    item.indentItem.id!!,
+                    UnverifiedItemData(
+                        itemId = item.indentItem.id!!,
+                        reason = "Not Received"
+                    )
+                )
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Handle Unverified Items",
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF333333)
+            )
+        },
+        text = {
+            LazyColumn {
+                item {
+                    Text(
+                        text = "Please specify the reason for each unverified item:",
+                        fontSize = 14.sp,
+                        color = Color(0xFF666666),
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                }
+
+                items(items) { item ->
+                    val itemData = itemsState[item.indentItem.id!!]!!
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFFFF8E1)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Text(
+                                text = item.indentItem.items?.name ?: "Unknown Item",
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF333333)
+                            )
+                            Text(
+                                text = "Fulfilled: ${item.indentItem.fulfilledQuantity} ${item.indentItem.unitOfMeasure}",
+                                fontSize = 12.sp,
+                                color = Color(0xFF666666)
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Radio buttons for reason selection
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable {
+                                        itemsState[item.indentItem.id!!] = itemData.copy(
+                                            reason = "Not Received",
+                                            receivedQuantity = 0.0
+                                        )
+                                    }
+                                ) {
+                                    RadioButton(
+                                        selected = itemData.reason == "Not Received",
+                                        onClick = {
+                                            itemsState[item.indentItem.id!!] = itemData.copy(
+                                                reason = "Not Received",
+                                                receivedQuantity = 0.0
+                                            )
+                                        }
+                                    )
+                                    Text(
+                                        text = "Not Received",
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.padding(start = 4.dp)
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable {
+                                        itemsState[item.indentItem.id!!] = itemData.copy(
+                                            reason = "Partially Received"
+                                        )
+                                    }
+                                ) {
+                                    RadioButton(
+                                        selected = itemData.reason == "Partially Received",
+                                        onClick = {
+                                            itemsState[item.indentItem.id!!] = itemData.copy(
+                                                reason = "Partially Received"
+                                            )
+                                        }
+                                    )
+                                    Text(
+                                        text = "Partially Received",
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.padding(start = 4.dp)
+                                    )
+                                }
+                            }
+
+                            // Show text field only if "Partially Received" is selected
+                            if (itemData.reason == "Partially Received") {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = if (itemData.receivedQuantity > 0) itemData.receivedQuantity.toString() else "",
+                                    onValueChange = { value ->
+                                        val quantity = value.toDoubleOrNull() ?: 0.0
+                                        itemsState[item.indentItem.id!!] = itemData.copy(
+                                            receivedQuantity = quantity
+                                        )
+                                    },
+                                    label = { Text("Received Quantity", fontSize = 12.sp) },
+                                    placeholder = { Text("Enter quantity") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color(0xFF1976D2),
+                                        focusedLabelColor = Color(0xFF1976D2)
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        // Build list of items with quantities
+                        val itemsWithQuantities = itemsState.values.mapNotNull { data ->
+                            if (data.reason == "Partially Received" && data.receivedQuantity > 0) {
+                                data.itemId to data.receivedQuantity
+                            } else if (data.reason == "Not Received") {
+                                data.itemId to 0.0
+                            } else {
+                                null
+                            }
+                        }
+                        onSubmit(itemsWithQuantities)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4CAF50)
+                    )
+                ) {
+                    Text("Submit", color = Color.White)
                 }
 
                 TextButton(onClick = onDismiss) {
