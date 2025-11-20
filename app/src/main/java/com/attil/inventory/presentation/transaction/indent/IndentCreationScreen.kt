@@ -361,13 +361,17 @@ private fun IndentDetailsAndItemSelectionStep(
                     OutlinedTextField(
                         value = uiState.purpose,
                         onValueChange = viewModel::setPurpose,
-                        label = { Text("Purpose", color = Color(0xFF666666)) },
-                        placeholder = { Text("Purpose of this indent", color = Color(0xFF999999)) },
+                        label = { Text("Purpose") },
+                        placeholder = { Text("Purpose of this indent") },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color(0xFF667eea),
+                            focusedLabelColor = Color(0xFF667eea),
+                            unfocusedLabelColor = Color(0xFF666666),
                             focusedTextColor = Color(0xFF333333),
-                            unfocusedTextColor = Color(0xFF333333)
+                            unfocusedTextColor = Color(0xFF333333),
+                            focusedPlaceholderColor = Color(0xFF999999),
+                            unfocusedPlaceholderColor = Color(0xFF999999)
                         )
                     )
 
@@ -492,7 +496,7 @@ private fun IndentDetailsAndItemSelectionStep(
         }
 
         // Items List
-        val itemsToShow = if (uiState.searchQuery.isNotEmpty()) {
+        val itemsToShow = if (uiState.searchQuery.isNotEmpty() || uiState.selectedCategoryFilter.isNotEmpty()) {
             uiState.filteredItems
         } else {
             uiState.availableItems
