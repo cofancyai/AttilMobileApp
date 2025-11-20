@@ -157,7 +157,6 @@ class UserViewModel @Inject constructor(
         fullName: String,
         phone: String?,
         roleId: String?,
-        cuisineId: String?,
         isActive: Boolean,
         cuisineIds: List<String> = emptyList()
     ) {
@@ -173,7 +172,6 @@ class UserViewModel @Inject constructor(
                     fullName = fullName,
                     phone = phone,
                     roleId = roleId,
-                    cuisineId = cuisineId,
                     password = password,
                     isActive = isActive
                 )
@@ -229,7 +227,6 @@ class UserViewModel @Inject constructor(
         fullName: String?,
         phone: String?,
         roleId: String?,
-        cuisineId: String?,
         isActive: Boolean?,
         cuisineIds: List<String> = emptyList()
     ) {
@@ -245,7 +242,6 @@ class UserViewModel @Inject constructor(
                     fullName = fullName,
                     phone = phone,
                     roleId = roleId,
-                    cuisineId = cuisineId,
                     isActive = isActive
                 )
 

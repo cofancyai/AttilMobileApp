@@ -181,7 +181,7 @@ fun UserManagementScreen(
             onDismiss = { showCreateDialog = false },
             onConfirm = { username, password, fullName, phone, cuisineIds ->
                 // Pass all cuisine IDs to ViewModel for junction table management
-                viewModel.createUser(username, "$username@restaurant.com", password, fullName, phone, null, cuisineIds.firstOrNull(), true, cuisineIds)
+                viewModel.createUser(username, "$username@restaurant.com", password, fullName, phone, null, true, cuisineIds)
                 showCreateDialog = false
             }
         )
@@ -196,7 +196,7 @@ fun UserManagementScreen(
             onConfirm = { username, _, fullName, phone, cuisineIds ->
                 selectedUser?.let { user ->
                     // Pass all cuisine IDs to ViewModel for junction table management
-                    viewModel.updateUser(user.id, username, user.email, fullName, phone, user.roleId, cuisineIds.firstOrNull(), user.isActive, cuisineIds)
+                    viewModel.updateUser(user.id, username, user.email, fullName, phone, user.roleId, user.isActive, cuisineIds)
                 }
                 showEditDialog = false
             }
