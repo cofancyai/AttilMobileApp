@@ -391,17 +391,23 @@ class IndentViewModel @Inject constructor(
         println("DEBUG - showVerificationDialog called")
         println("DEBUG - indent.indentItems size: ${indent.indentItems?.size}")
 
-        val verificationItems = indent.indentItems?.map { item ->
-            println("DEBUG - Item: ${item.items?.name}, fulfilled: ${item.fulfilledQuantity}")
-            VerificationItem(
-                indentItem = item,
-                isFulfilled = item.fulfilledQuantity != null && item.fulfilledQuantity!! > 0,
-                isReceived = false
-            )
-        } ?: emptyList()
+        // Only include items that were actually fulfilled
+        // Non-fulfilled items cannot be verified since they were never sent
+        val verificationItems = indent.indentItems
+            ?.filter { item ->
+                item.fulfilledQuantity != null && item.fulfilledQuantity!! > 0
+            }
+            ?.map { item ->
+                println("DEBUG - Item: ${item.items?.name}, fulfilled: ${item.fulfilledQuantity}")
+                VerificationItem(
+                    indentItem = item,
+                    isFulfilled = true, // All filtered items are fulfilled
+                    isReceived = false
+                )
+            } ?: emptyList()
 
         println("DEBUG - verificationItems size: ${verificationItems.size}")
-        println("DEBUG - fulfilled items: ${verificationItems.count { it.isFulfilled }}")
+        println("DEBUG - All items shown are fulfilled")
 
         _uiState.value = _uiState.value.copy(
             showVerificationDialog = true,

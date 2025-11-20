@@ -586,36 +586,94 @@ private fun VerificationDialog(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        val fulfilledCount = verificationItems.count { it.isFulfilled }
-                        val receivedCount = verificationItems.count { it.isReceived && it.isFulfilled }
+                        // Show total requested vs fulfilled items info
+                        val totalRequestedItems = indent.indentItems?.size ?: 0
+                        val fulfilledCount = verificationItems.size
+                        val receivedCount = verificationItems.count { it.isReceived }
+
+                        if (totalRequestedItems > fulfilledCount) {
+                            Text(
+                                text = "⚠️ ${totalRequestedItems - fulfilledCount} item(s) not fulfilled",
+                                fontSize = 12.sp,
+                                color = Color(0xFFFF9800),
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
 
                         Text(
-                            text = "Items ($receivedCount of $fulfilledCount verified)",
+                            text = "Fulfilled Items ($receivedCount of $fulfilledCount verified)",
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
                             color = Color(0xFF333333)
                         )
 
+                        if (fulfilledCount > 0) {
+                            Text(
+                                text = "Check each item you received in good condition",
+                                fontSize = 12.sp,
+                                color = Color(0xFF666666),
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
 
-                items(verificationItems) { item ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (item.isReceived) Color(0xFFE8F5E8) else Color(0xFFF8F9FA)
-                        )
-                    ) {
-                        Row(
+                if (verificationItems.isEmpty()) {
+                    item {
+                        Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(vertical = 8.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFFFFF8E1)
+                            )
                         ) {
-                            if (item.isFulfilled) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    Icons.Default.Info,
+                                    contentDescription = "No items",
+                                    tint = Color(0xFFFF8F00),
+                                    modifier = Modifier.size(40.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "No items were fulfilled",
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF333333)
+                                )
+                                Text(
+                                    text = "There are no items to verify for this indent",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF666666),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    items(verificationItems) { item ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (item.isReceived) Color(0xFFE8F5E8) else Color(0xFFF8F9FA)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Checkbox(
                                     checked = item.isReceived,
                                     onCheckedChange = { checked ->
@@ -625,30 +683,35 @@ private fun VerificationDialog(
                                         checkedColor = Color(0xFF4CAF50)
                                     )
                                 )
-                            } else {
-                                Spacer(modifier = Modifier.width(48.dp))
-                            }
 
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = item.indentItem.items?.name ?: "Unknown Item",
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF333333)
-                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = item.indentItem.items?.name ?: "Unknown Item",
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF333333)
+                                    )
 
-                                if (item.isFulfilled) {
-                                    Text(
-                                        text = "Fulfilled: ${item.indentItem.fulfilledQuantity} ${item.indentItem.unitOfMeasure}",
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF4CAF50)
-                                    )
-                                } else {
-                                    Text(
-                                        text = "(Not Fulfilled)",
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF757575),
-                                        fontStyle = FontStyle.Italic
-                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Requested: ${item.indentItem.requestedQuantity} ${item.indentItem.unitOfMeasure}",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF666666)
+                                        )
+                                        Text(
+                                            text = "•",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF666666)
+                                        )
+                                        Text(
+                                            text = "Fulfilled: ${item.indentItem.fulfilledQuantity} ${item.indentItem.unitOfMeasure}",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF4CAF50),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -671,18 +734,19 @@ private fun VerificationDialog(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val fulfilledItems = verificationItems.filter { it.isFulfilled }
-                val receivedCount = verificationItems.count { it.isReceived && it.isFulfilled }
+                val receivedCount = verificationItems.count { it.isReceived }
+                val totalFulfilledCount = verificationItems.size
 
                 val buttonText = when {
+                    verificationItems.isEmpty() -> "No Items to Verify"
                     receivedCount == 0 -> "Verify Items"
-                    receivedCount == fulfilledItems.size -> "All Received"
-                    else -> "Partially Received"
+                    receivedCount == totalFulfilledCount -> "All Received"
+                    else -> "Partially Received ($receivedCount/$totalFulfilledCount)"
                 }
 
                 Button(
                     onClick = onVerifyItems,
-                    enabled = !isVerifying && receivedCount > 0,
+                    enabled = !isVerifying && receivedCount > 0 && verificationItems.isNotEmpty(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF4CAF50)
                     )
