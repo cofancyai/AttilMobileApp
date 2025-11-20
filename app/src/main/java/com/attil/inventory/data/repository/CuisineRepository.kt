@@ -15,14 +15,16 @@ class CuisineRepository @Inject constructor(
     private val apiService: CuisineApiService
 ) {
 
-    suspend fun getAllCuisines(): Flow<Result<List<Cuisine>>> = flow {
+    fun getAllCuisines(): Flow<Result<List<Cuisine>>> = flow {
         val result = try {
             Log.d("CuisineRepo", "Fetching all cuisines...")
             val response = apiService.getAllCuisines()
             Log.d("CuisineRepo", "Response code: ${response.code()}")
 
             if (response.isSuccessful) {
-                Result.success(response.body() ?: emptyList())
+                val cuisines = response.body() ?: emptyList()
+                Log.d("CuisineRepo", "Successfully fetched ${cuisines.size} cuisines")
+                Result.success(cuisines)
             } else {
                 val errorBody = response.errorBody()?.string()
                 Log.e("CuisineRepo", "Error fetching cuisines: $errorBody")
@@ -35,7 +37,7 @@ class CuisineRepository @Inject constructor(
         emit(result)
     }
 
-    suspend fun createCuisine(request: CreateCuisineRequest): Flow<Result<Cuisine>> = flow {
+    fun createCuisine(request: CreateCuisineRequest): Flow<Result<Cuisine>> = flow {
         val result = try {
             Log.d("CuisineRepo", "Creating cuisine: $request")
             val response = apiService.createCuisine(request)
@@ -60,7 +62,7 @@ class CuisineRepository @Inject constructor(
         emit(result)
     }
 
-    suspend fun updateCuisine(id: String, request: UpdateCuisineRequest): Flow<Result<Cuisine>> = flow {
+    fun updateCuisine(id: String, request: UpdateCuisineRequest): Flow<Result<Cuisine>> = flow {
         val result = try {
             Log.d("CuisineRepo", "Updating cuisine $id: $request")
             val response = apiService.updateCuisine("eq.$id", request)
@@ -85,7 +87,7 @@ class CuisineRepository @Inject constructor(
         emit(result)
     }
 
-    suspend fun deleteCuisine(id: String): Flow<Result<Unit>> = flow {
+    fun deleteCuisine(id: String): Flow<Result<Unit>> = flow {
         val result = try {
             Log.d("CuisineRepo", "Deleting cuisine: $id")
             val response = apiService.deleteCuisine("eq.$id")
