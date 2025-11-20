@@ -910,8 +910,8 @@ private fun VerificationDialog(
     onItemVerificationChange: (String, Boolean) -> Unit,
     onVerifyItems: () -> Unit,
     onFullyReceived: () -> Unit = {},
-    onPartiallyReceived: (List<Pair<String, Double>>) -> Unit = {},
-    onReceivedQuantityChange: (String, Double) -> Unit = {}
+    onPartiallyReceived: (List<Pair<String, Double>>) -> Unit = { _ -> },
+    onReceivedQuantityChange: (String, Double) -> Unit = { _, _ -> }
 ) {
     var verificationMode by remember { mutableStateOf<String?>(null) } // null, "full", "partial"
     AlertDialog(
