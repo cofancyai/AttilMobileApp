@@ -64,15 +64,40 @@ class ImportExportViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ImportExportUiState())
     val uiState: StateFlow<ImportExportUiState> = _uiState.asStateFlow()
 
+    // Safe state update function to prevent Flow exceptions
+    private fun updateState(update: (ImportExportUiState) -> ImportExportUiState) {
+        try {
+            _uiState.value = update(_uiState.value)
+        } catch (e: Exception) {
+            Log.e("ImportExportVM", "Error updating state: ${e.message}", e)
+            // Reset to safe state on error
+            try {
+                _uiState.value = ImportExportUiState(
+                    isProcessing = false,
+                    lastResult = ImportResult(
+                        success = false,
+                        totalRecords = 0,
+                        successfulRecords = 0,
+                        failedRecords = 0,
+                        errors = listOf("Internal error: ${e.message}"),
+                        message = "Operation failed"
+                    )
+                )
+            } catch (e2: Exception) {
+                Log.e("ImportExportVM", "Critical error resetting state: ${e2.message}", e2)
+            }
+        }
+    }
+
     fun setImportType(importType: String) {
-        _uiState.value = _uiState.value.copy(selectedImportType = importType)
+        updateState { it.copy(selectedImportType = importType) }
     }
 
     fun handleFileSelected(context: Context, uri: Uri) {
         val importType = _uiState.value.selectedImportType ?: return
 
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isProcessing = true)
+            updateState { it.copy(isProcessing = true) }
 
             try {
                 // Validate file structure first
@@ -80,17 +105,19 @@ class ImportExportViewModel @Inject constructor(
                 val validation = ExcelUtils.validateExcelStructure(context, uri, expectedHeaders)
 
                 if (!validation.isValid) {
-                    _uiState.value = _uiState.value.copy(
-                        isProcessing = false,
-                        lastResult = ImportResult(
-                            success = false,
-                            totalRecords = 0,
-                            successfulRecords = 0,
-                            failedRecords = 0,
-                            errors = listOf(validation.message),
-                            message = "Excel validation failed"
+                    updateState {
+                        it.copy(
+                            isProcessing = false,
+                            lastResult = ImportResult(
+                                success = false,
+                                totalRecords = 0,
+                                successfulRecords = 0,
+                                failedRecords = 0,
+                                errors = listOf(validation.message),
+                                message = "Excel validation failed"
+                            )
                         )
-                    )
+                    }
                     return@launch
                 }
 
@@ -117,22 +144,26 @@ class ImportExportViewModel @Inject constructor(
                     )
                 }
 
-                _uiState.value = _uiState.value.copy(
-                    isProcessing = false,
-                    lastResult = result
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isProcessing = false,
-                    lastResult = ImportResult(
-                        success = false,
-                        totalRecords = 0,
-                        successfulRecords = 0,
-                        failedRecords = 0,
-                        errors = listOf(e.message ?: "Unknown error"),
-                        message = "Import failed"
+                updateState {
+                    it.copy(
+                        isProcessing = false,
+                        lastResult = result
                     )
-                )
+                }
+            } catch (e: Exception) {
+                updateState {
+                    it.copy(
+                        isProcessing = false,
+                        lastResult = ImportResult(
+                            success = false,
+                            totalRecords = 0,
+                            successfulRecords = 0,
+                            failedRecords = 0,
+                            errors = listOf(e.message ?: "Unknown error"),
+                            message = "Import failed"
+                        )
+                    )
+                }
             }
         }
     }
@@ -715,7 +746,7 @@ class ImportExportViewModel @Inject constructor(
 
     fun exportData(context: Context, exportType: String) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isProcessing = true)
+            updateState { it.copy(isProcessing = true) }
 
             try {
                 val fileName = "${exportType.lowercase()}_export_${System.currentTimeMillis()}.xlsx"
@@ -743,28 +774,32 @@ class ImportExportViewModel @Inject constructor(
                     // File is already saved to Downloads
                 }
 
-                _uiState.value = _uiState.value.copy(
-                    isProcessing = false,
-                    lastResult = ImportResult(
-                        success = true,
-                        totalRecords = 0,
-                        successfulRecords = 0,
-                        failedRecords = 0,
-                        message = "File saved to Downloads folder: $fileName"
+                updateState {
+                    it.copy(
+                        isProcessing = false,
+                        lastResult = ImportResult(
+                            success = true,
+                            totalRecords = 0,
+                            successfulRecords = 0,
+                            failedRecords = 0,
+                            message = "File saved to Downloads folder: $fileName"
+                        )
                     )
-                )
+                }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isProcessing = false,
-                    lastResult = ImportResult(
-                        success = false,
-                        totalRecords = 0,
-                        successfulRecords = 0,
-                        failedRecords = 0,
-                        errors = listOf(e.message ?: "Unknown error"),
-                        message = "Export failed"
+                updateState {
+                    it.copy(
+                        isProcessing = false,
+                        lastResult = ImportResult(
+                            success = false,
+                            totalRecords = 0,
+                            successfulRecords = 0,
+                            failedRecords = 0,
+                            errors = listOf(e.message ?: "Unknown error"),
+                            message = "Export failed"
+                        )
                     )
-                )
+                }
             }
         }
     }
@@ -1255,7 +1290,7 @@ class ImportExportViewModel @Inject constructor(
     fun downloadTemplate(context: Context, templateType: String) {
         viewModelScope.launch {
             try {
-                _uiState.value = _uiState.value.copy(isProcessing = true)
+                updateState { it.copy(isProcessing = true) }
 
                 Log.d("ImportExportVM", "Starting template download for type: $templateType")
                 val fileName = "${templateType.lowercase()}_template.xlsx"
@@ -1299,28 +1334,32 @@ class ImportExportViewModel @Inject constructor(
                     }
                 }
 
-                _uiState.value = _uiState.value.copy(
-                    isProcessing = false,
-                    lastResult = ImportResult(
-                        success = true,
-                        totalRecords = 0,
-                        successfulRecords = 0,
-                        failedRecords = 0,
-                        message = "Template downloaded to Downloads folder: $fileName"
+                updateState {
+                    it.copy(
+                        isProcessing = false,
+                        lastResult = ImportResult(
+                            success = true,
+                            totalRecords = 0,
+                            successfulRecords = 0,
+                            failedRecords = 0,
+                            message = "Template downloaded to Downloads folder: $fileName"
+                        )
                     )
-                )
+                }
             } catch (e: Exception) {
                 Log.e("ImportExportVM", "Failed to download template: ${e.message}", e)
-                _uiState.value = _uiState.value.copy(
-                    isProcessing = false,
-                    lastResult = ImportResult(
-                        success = false,
-                        totalRecords = 0,
-                        successfulRecords = 0,
-                        failedRecords = 0,
-                        message = "Failed to download template: ${e.message}"
+                updateState {
+                    it.copy(
+                        isProcessing = false,
+                        lastResult = ImportResult(
+                            success = false,
+                            totalRecords = 0,
+                            successfulRecords = 0,
+                            failedRecords = 0,
+                            message = "Failed to download template: ${e.message}"
+                        )
                     )
-                )
+                }
             }
         }
     }
