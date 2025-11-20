@@ -73,7 +73,11 @@ data class User(
 
     // Nested role information when joined
     @SerializedName("roles")
-    val role: Role? = null
+    val role: Role? = null,
+
+    // Cuisine assignments for chef users
+    @SerializedName("cuisine_ids")
+    val cuisineIds: List<String>? = null
 ) {
     // Helper function to check if user has permission for a specific screen
     fun hasScreenPermission(screenRoute: String): Boolean {
@@ -110,7 +114,10 @@ data class CreateUserRequest(
     val isActive: Boolean = true,
 
     @SerializedName("screen_permissions")
-    val screenPermissions: List<String>? = null
+    val screenPermissions: List<String>? = null,
+
+    @SerializedName("cuisine_ids")
+    val cuisineIds: List<String>? = null
 )
 
 data class UpdateUserRequest(
@@ -133,7 +140,10 @@ data class UpdateUserRequest(
     val isActive: Boolean? = null,
 
     @SerializedName("screen_permissions")
-    val screenPermissions: List<String>? = null
+    val screenPermissions: List<String>? = null,
+
+    @SerializedName("cuisine_ids")
+    val cuisineIds: List<String>? = null
 )
 
 // New data class specifically for updating screen permissions

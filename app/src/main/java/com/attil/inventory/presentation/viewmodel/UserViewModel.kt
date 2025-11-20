@@ -8,8 +8,10 @@ import com.attil.inventory.data.model.master.Role
 import com.attil.inventory.data.model.master.CreateUserRequest
 import com.attil.inventory.data.model.master.UpdateUserRequest
 import com.attil.inventory.data.model.master.ResetPasswordRequest
+import com.attil.inventory.data.model.management.Cuisine
 import com.attil.inventory.data.repository.UserRepository
 import com.attil.inventory.data.repository.RoleRepository
+import com.attil.inventory.data.repository.CuisineRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +23,8 @@ import javax.inject.Inject
 @HiltViewModel
 class UserViewModel @Inject constructor(
     private val userRepository: UserRepository,
-    private val roleRepository: RoleRepository
+    private val roleRepository: RoleRepository,
+    private val cuisineRepository: CuisineRepository
 ) : ViewModel() {
 
     private val _users = MutableStateFlow<List<User>>(emptyList())
@@ -35,6 +38,9 @@ class UserViewModel @Inject constructor(
 
     private val _roles = MutableStateFlow<List<Role>>(emptyList())
     val roles: StateFlow<List<Role>> = _roles.asStateFlow()
+
+    private val _cuisines = MutableStateFlow<List<Cuisine>>(emptyList())
+    val cuisines: StateFlow<List<Cuisine>> = _cuisines.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -58,6 +64,7 @@ class UserViewModel @Inject constructor(
         Log.d("UserViewModel", "UserViewModel initialized")
         loadUsers()
         loadRoles()
+        loadCuisines()
     }
 
     fun loadUsers() {
@@ -116,6 +123,33 @@ class UserViewModel @Inject constructor(
         }
     }
 
+    fun loadCuisines() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+
+            try {
+                cuisineRepository.getAllCuisines().collectLatest { result ->
+                    _isLoading.value = false
+                    result.fold(
+                        onSuccess = { cuisineList ->
+                            Log.d("UserViewModel", "Successfully loaded ${cuisineList.size} cuisines")
+                            _cuisines.value = cuisineList
+                        },
+                        onFailure = { exception ->
+                            Log.e("UserViewModel", "Error loading cuisines", exception)
+                            _errorMessage.value = exception.message ?: "Failed to load cuisines"
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("UserViewModel", "Exception loading cuisines", e)
+                _isLoading.value = false
+                _errorMessage.value = e.message ?: "Unknown error occurred"
+            }
+        }
+    }
+
     fun createUser(
         username: String,
         email: String,
@@ -123,7 +157,8 @@ class UserViewModel @Inject constructor(
         fullName: String,
         phone: String?,
         roleId: String?,
-        isActive: Boolean
+        isActive: Boolean,
+        cuisineIds: List<String>? = null
     ) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -138,7 +173,8 @@ class UserViewModel @Inject constructor(
                     phone = phone,
                     roleId = roleId,
                     password = password,
-                    isActive = isActive
+                    isActive = isActive,
+                    cuisineIds = cuisineIds
                 )
 
                 userRepository.createUser(createUserRequest).collectLatest { result ->
@@ -170,7 +206,8 @@ class UserViewModel @Inject constructor(
         fullName: String?,
         phone: String?,
         roleId: String?,
-        isActive: Boolean?
+        isActive: Boolean?,
+        cuisineIds: List<String>? = null
     ) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -184,7 +221,8 @@ class UserViewModel @Inject constructor(
                     fullName = fullName,
                     phone = phone,
                     roleId = roleId,
-                    isActive = isActive
+                    isActive = isActive,
+                    cuisineIds = cuisineIds
                 )
 
                 userRepository.updateUser(userId, updateUserRequest).collectLatest { result ->
