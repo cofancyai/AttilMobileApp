@@ -51,7 +51,21 @@ fun MainDashboardWithDrawer(
 
     val authState by authViewModel.authState.collectAsState()
     val currentUser = authState.user
-    val userPermissions = currentUser?.getPermittedScreens() ?: listOf("dashboard")
+
+    // Grant all permissions if user has no specific permissions set (for development/testing)
+    val userPermissions = if (currentUser?.screenPermissions.isNullOrEmpty()) {
+        // Grant all available screens by default
+        listOf(
+            "dashboard",
+            "godown_management", "rack_management", "category_management", "cuisine_management",
+            "vendor_management", "item_management", "usage_management", "role_management", "user_management",
+            "inward_management", "outward_management", "current_stock",
+            "indent_management", "indent_creation", "indent_fulfillment",
+            "inventory_reports", "import_export"
+        )
+    } else {
+        currentUser.getPermittedScreens()
+    }
 
     // Use current user's ID or default
     val currentUserId = currentUser?.id ?: "550e8400-e29b-41d4-a716-446655440000"

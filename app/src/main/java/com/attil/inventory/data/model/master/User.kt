@@ -191,6 +191,9 @@ object AvailableScreens {
     // Reports
     const val INVENTORY_REPORTS = "inventory_reports"
 
+    // Import/Export
+    const val IMPORT_EXPORT = "import_export"
+
     // Get all available screens for assignment
     fun getAllScreens(): Map<String, List<Pair<String, String>>> {
         return mapOf(
@@ -215,6 +218,9 @@ object AvailableScreens {
             ),
             "Reports" to listOf(
                 INVENTORY_REPORTS to "Inventory Reports"
+            ),
+            "Import/Export" to listOf(
+                IMPORT_EXPORT to "Import/Export"
             )
         )
     }
