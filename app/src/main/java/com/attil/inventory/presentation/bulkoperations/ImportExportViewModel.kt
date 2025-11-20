@@ -570,7 +570,15 @@ class ImportExportViewModel @Inject constructor(
                 }
 
                 val categoryName = row["category_name"]?.trim() ?: throw Exception("Missing category_name")
-                val unitOfMeasure = row["unit_of_measure"]?.trim()?.uppercase() ?: throw Exception("Missing unit_of_measure")
+                val unitOfMeasureRaw = row["unit_of_measure"]?.trim() ?: throw Exception("Missing unit_of_measure")
+                val unitOfMeasure = unitOfMeasureRaw.lowercase()
+
+                // Validate unit_of_measure
+                val allowedUnits = listOf("kg", "liters", "pieces", "packets", "grams")
+                if (!allowedUnits.contains(unitOfMeasure)) {
+                    throw Exception("Invalid unit_of_measure '$unitOfMeasureRaw'. Allowed values: ${allowedUnits.joinToString(", ")}")
+                }
+
                 val minimumStockLevel = row["minimum_stock_level"]?.toDoubleOrNull() ?: 0.0
                 val godownName = row["godown_name"]?.trim()
                 val rackName = row["rack_name"]?.trim()
@@ -1392,7 +1400,8 @@ class ImportExportViewModel @Inject constructor(
 
         context.contentResolver.openOutputStream(uri)?.use { outputStream ->
             val sheetName = templateType.split("_").joinToString(" ") { it.lowercase().replaceFirstChar { c -> c.uppercase() } }
-            ExcelUtils.createExcelFile(context, outputStream, sheetName, headers, emptyList())
+            val exampleData = getTemplateExampleData(templateType)
+            ExcelUtils.createExcelFile(context, outputStream, sheetName, headers, exampleData)
         } ?: throw Exception("Failed to open output stream")
 
         return uri
@@ -1408,9 +1417,44 @@ class ImportExportViewModel @Inject constructor(
 
         file.outputStream().use { outputStream ->
             val sheetName = templateType.split("_").joinToString(" ") { it.lowercase().replaceFirstChar { c -> c.uppercase() } }
-            ExcelUtils.createExcelFile(context, outputStream, sheetName, headers, emptyList())
+            val exampleData = getTemplateExampleData(templateType)
+            ExcelUtils.createExcelFile(context, outputStream, sheetName, headers, exampleData)
         }
 
         return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    }
+
+    private fun getTemplateExampleData(templateType: String): List<List<Any>> {
+        return when (templateType) {
+            "ITEMS" -> listOf(
+                listOf(
+                    "Example: BASMATI RICE",
+                    "RICE",
+                    "MAIN GODOWN",
+                    "RACK A1",
+                    "kg (allowed: kg, liters, pieces, packets, grams)",
+                    "50.0",
+                    "true"
+                )
+            )
+            "INITIAL_STOCK", "INWARD_TRANSACTIONS" -> listOf(
+                listOf(
+                    "BASMATI RICE",
+                    "ABC Suppliers",
+                    "9876543210",
+                    "123 Market Street",
+                    "2025-01-15",
+                    "100.0",
+                    "50.0",
+                    "4500.0",
+                    "18.0",
+                    "5310.0",
+                    "INV-2025-001",
+                    "2026-01-15",
+                    "NORTH INDIAN"
+                )
+            )
+            else -> emptyList()
+        }
     }
 }
