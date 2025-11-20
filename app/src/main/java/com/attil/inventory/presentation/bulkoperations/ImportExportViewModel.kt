@@ -571,13 +571,9 @@ class ImportExportViewModel @Inject constructor(
 
                 val categoryName = row["category_name"]?.trim() ?: throw Exception("Missing category_name")
                 val unitOfMeasureRaw = row["unit_of_measure"]?.trim() ?: throw Exception("Missing unit_of_measure")
-                val unitOfMeasure = unitOfMeasureRaw.lowercase()
 
-                // Validate unit_of_measure
-                val allowedUnits = listOf("kg", "liters", "pieces", "packets", "grams")
-                if (!allowedUnits.contains(unitOfMeasure)) {
-                    throw Exception("Invalid unit_of_measure '$unitOfMeasureRaw'. Allowed values: ${allowedUnits.joinToString(", ")}")
-                }
+                // Normalize unit_of_measure - handle all common variations
+                val unitOfMeasure = normalizeUnitOfMeasure(unitOfMeasureRaw)
 
                 val minimumStockLevel = row["minimum_stock_level"]?.toDoubleOrNull() ?: 0.0
                 val godownName = row["godown_name"]?.trim()
@@ -1372,6 +1368,42 @@ class ImportExportViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Normalize unit of measure to database-accepted values.
+     * Handles all common abbreviations and variations (case-insensitive).
+     */
+    private fun normalizeUnitOfMeasure(rawUnit: String): String {
+        val normalized = rawUnit.trim().lowercase()
+
+        // Map all common variations to database values
+        return when (normalized) {
+            // KG variations
+            "kg", "kgs", "kilogram", "kilograms" -> "kg"
+
+            // LITERS variations
+            "ltr", "ltrs", "liter", "liters", "litre", "litres", "l" -> "liters"
+
+            // PIECES variations
+            "pcs", "pc", "piece", "pieces" -> "pieces"
+
+            // PACKETS variations
+            "pkt", "pkts", "packet", "packets" -> "packets"
+
+            // GRAMS variations
+            "gm", "gms", "gram", "grams", "g" -> "grams"
+
+            else -> throw Exception(
+                "Invalid unit_of_measure '$rawUnit'. " +
+                "Accepted values: " +
+                "kg/kgs/kilogram/kilograms, " +
+                "ltr/ltrs/liter/liters/litre/litres/l, " +
+                "pcs/pc/piece/pieces, " +
+                "pkt/pkts/packet/packets, " +
+                "gm/gms/gram/grams/g"
+            )
+        }
+    }
+
     private fun getTemplateHeaders(templateType: String): List<String> {
         return when (templateType) {
             "GODOWNS" -> listOf("name", "description", "location")
@@ -1428,18 +1460,27 @@ class ImportExportViewModel @Inject constructor(
         return when (templateType) {
             "ITEMS" -> listOf(
                 listOf(
-                    "Example: BASMATI RICE",
-                    "RICE",
-                    "MAIN GODOWN",
-                    "RACK A1",
-                    "kg (allowed: kg, liters, pieces, packets, grams)",
-                    "50.0",
+                    "EXAMPLE: DELETE THIS ROW BEFORE IMPORT",
+                    "Category Name",
+                    "Godown Name (optional)",
+                    "Rack Name (optional)",
+                    "kg OR pcs OR ltr OR gm OR pkt (see note below)",
+                    "10.0",
                     "true"
+                ),
+                listOf(
+                    "NOTE: Unit variations accepted",
+                    "",
+                    "",
+                    "",
+                    "kg/kgs/kilogram | pcs/pc/piece/pieces | ltr/l/liter/liters | gm/g/gram/grams | pkt/packet/packets",
+                    "",
+                    ""
                 )
             )
             "INITIAL_STOCK", "INWARD_TRANSACTIONS" -> listOf(
                 listOf(
-                    "BASMATI RICE",
+                    "EXAMPLE: DELETE THIS ROW",
                     "ABC Suppliers",
                     "9876543210",
                     "123 Market Street",
