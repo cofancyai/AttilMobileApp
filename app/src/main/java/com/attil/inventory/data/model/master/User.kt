@@ -71,14 +71,31 @@ data class User(
     @JsonAdapter(ScreenPermissionsDeserializer::class)
     val screenPermissions: List<String>? = null,
 
+    // Cuisine assignment for chefs (deprecated - use userCuisines)
+    @SerializedName("cuisine_id")
+    val cuisineId: String? = null,
+
     // Nested role information when joined
     @SerializedName("roles")
     val role: Role? = null,
 
-    // Cuisine assignments for chef users
-    @SerializedName("cuisine_ids")
-    val cuisineIds: List<String>? = null
+    // Nested cuisine information when joined (deprecated - use userCuisines)
+    @SerializedName("cuisines")
+    val cuisine: com.attil.inventory.data.model.management.Cuisine? = null,
+
+    // Multiple cuisines assigned to user (from user_cuisines junction table)
+    @SerializedName("user_cuisines")
+    val userCuisines: List<UserCuisineRelation>? = null
 ) {
+    // Helper function to get list of assigned cuisine IDs
+    fun getCuisineIds(): List<String> {
+        return userCuisines?.mapNotNull { it.cuisineId } ?: listOfNotNull(cuisineId)
+    }
+
+    // Helper function to get list of assigned cuisines
+    fun getAssignedCuisines(): List<com.attil.inventory.data.model.management.Cuisine> {
+        return userCuisines?.mapNotNull { it.cuisine } ?: listOfNotNull(cuisine)
+    }
     // Helper function to check if user has permission for a specific screen
     fun hasScreenPermission(screenRoute: String): Boolean {
         return screenPermissions?.contains(screenRoute) == true || screenRoute == "dashboard"
@@ -230,3 +247,31 @@ object AvailableScreens {
         return getAllScreens().values.flatten().map { it.first }
     }
 }
+
+// User-Cuisine relationship model
+data class UserCuisineRelation(
+    @SerializedName("id")
+    val id: String,
+
+    @SerializedName("user_id")
+    val userId: String,
+
+    @SerializedName("cuisine_id")
+    val cuisineId: String,
+
+    @SerializedName("created_at")
+    val createdAt: String?,
+
+    // Nested cuisine information when joined
+    @SerializedName("cuisines")
+    val cuisine: com.attil.inventory.data.model.management.Cuisine? = null
+)
+
+// Request model for assigning multiple cuisines to a user
+data class AssignUserCuisinesRequest(
+    @SerializedName("user_id")
+    val userId: String,
+
+    @SerializedName("cuisine_ids")
+    val cuisineIds: List<String>
+)
