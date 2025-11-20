@@ -465,7 +465,20 @@ class ImportExportViewModel @Inject constructor(
         // Create duplicate check map: "RACKNAME_GODOWNID" to detect duplicates
         val existingRackKeys = racks.map { "${it.name.uppercase()}_${it.godownId}" }.toSet()
 
-        val godowns = racks.mapNotNull { it.godowns }.distinctBy { it.id }
+        // Fetch godowns directly from repository (not from racks!)
+        val godownsResult = godownRepository.getAllGodowns().first()
+        if (godownsResult.isFailure) {
+            return ImportResult(
+                success = false,
+                totalRecords = excelData.size,
+                successfulRecords = 0,
+                failedRecords = excelData.size,
+                errors = listOf("Failed to fetch godowns: ${godownsResult.exceptionOrNull()?.message}"),
+                message = "Import failed - could not fetch godowns"
+            )
+        }
+
+        val godowns = godownsResult.getOrNull() ?: emptyList()
         val godownMap = godowns.associate { it.name.uppercase() to (it.id ?: "") }
 
         excelData.forEachIndexed { index, row ->
@@ -555,7 +568,20 @@ class ImportExportViewModel @Inject constructor(
         val racks = racksResult.getOrNull() ?: emptyList()
         val rackMap = racks.associate { it.name.uppercase() to (it.id ?: "") }
 
-        val godowns = racks.mapNotNull { it.godowns }.distinctBy { it.id }
+        // Fetch godowns directly from repository (not from racks!)
+        val godownsResult = godownRepository.getAllGodowns().first()
+        if (godownsResult.isFailure) {
+            return ImportResult(
+                success = false,
+                totalRecords = excelData.size,
+                successfulRecords = 0,
+                failedRecords = excelData.size,
+                errors = listOf("Failed to fetch godowns: ${godownsResult.exceptionOrNull()?.message}"),
+                message = "Import failed - could not fetch godowns"
+            )
+        }
+
+        val godowns = godownsResult.getOrNull() ?: emptyList()
         val godownMap = godowns.associate { it.name.uppercase() to (it.id ?: "") }
 
         excelData.forEachIndexed { index, row ->
