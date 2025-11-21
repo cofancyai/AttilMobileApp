@@ -102,6 +102,20 @@ data class OutwardReportItem(
 )
 
 // INDENT REPORT MODELS - NEW
+data class IndentReportFilter(
+    val startDate: String,
+    val endDate: String,
+    val status: String? = null,
+    val chefId: String? = null
+)
+
+data class IndentReport(
+    val reportDate: String,
+    val filter: IndentReportFilter,
+    val totalIndents: Int,
+    val indents: List<IndentReportSummary>
+)
+
 data class IndentReportData(
     val reportDate: String,
     val startDate: String,
