@@ -9,10 +9,11 @@ data class ReportFilter(
     val endDate: String
 )
 
-// Simplified Report Types - only 2 types
+// Report Types
 enum class ReportType {
     INWARD,
-    OUTWARD
+    OUTWARD,
+    INDENT
 }
 
 // INWARD REPORT MODELS
