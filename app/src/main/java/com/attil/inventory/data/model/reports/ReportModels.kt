@@ -9,11 +9,10 @@ data class ReportFilter(
     val endDate: String
 )
 
-// Report Types
+// Simplified Report Types - only 2 types
 enum class ReportType {
     INWARD,
-    OUTWARD,
-    INDENT
+    OUTWARD
 }
 
 // INWARD REPORT MODELS
@@ -96,12 +95,50 @@ data class OutwardReportItem(
     val notes: String?,
     @SerializedName("created_by")
     val createdBy: String?,
-    @SerializedName("chef_name")
-    val chefName: String? = null,
     // NEW: Calculated cost fields
     val calculatedCostPerUnit: Double = 0.0,
     val calculatedTotalCost: Double = 0.0,
     val costCalculationMethod: String = "N/A" // "15-day avg", "60-day avg", "last purchase", etc.
+)
+
+// INDENT REPORT MODELS - NEW
+data class IndentReportData(
+    val reportDate: String,
+    val startDate: String,
+    val endDate: String,
+    val totalIndents: Int,
+    val totalItems: Int,
+    val totalFulfilledItems: Int,
+    val totalVerifiedItems: Int,
+    val indents: List<IndentReportSummary>
+)
+
+data class IndentReportSummary(
+    val indentId: String,
+    val chefName: String,
+    val cuisineName: String,
+    val purpose: String,
+    val requiredDate: String,
+    val requiredTime: String,
+    val status: String,
+    val priority: String?,
+    val totalItems: Int,
+    val fulfilledItems: Int,
+    val verifiedItems: Int,
+    val rejectedItems: Int,
+    val fulfilledBy: String?,
+    val items: List<IndentReportItemDetail>
+)
+
+data class IndentReportItemDetail(
+    val itemId: String,
+    val itemName: String,
+    val requestedQuantity: Double,
+    val fulfilledQuantity: Double?,
+    val unitOfMeasure: String,
+    val isFulfilled: Boolean,
+    val isVerified: Boolean,
+    val isRejected: Boolean
 )
 
 // Summary models for quick statistics
@@ -119,26 +156,6 @@ data class OutwardSummary(
     val topCuisine: String?,
     val topCategory: String?,
     val averageConsumptionValue: BigDecimal
-)
-
-// CUISINE-WISE REPORT MODELS
-data class CuisineWiseReport(
-    val reportDate: String,
-    val filter: ReportFilter,
-    val cuisineName: String?, // null means "All Cuisines"
-    val totalTransactions: Int,
-    val totalQuantity: Double,
-    val totalValue: BigDecimal,
-    val items: List<OutwardReportItem>, // Reuse OutwardReportItem
-    val cuisineBreakdown: List<CuisineBreakdownItem> // Summary by cuisine
-)
-
-data class CuisineBreakdownItem(
-    val cuisineName: String,
-    val totalTransactions: Int,
-    val totalQuantity: Double,
-    val totalCost: Double,
-    val percentageOfTotal: Double
 )
 
 // Moving average cost response model
@@ -275,55 +292,7 @@ data class VendorPerformanceItem(
     val mostSuppliedItem: String?
 )
 
-// INDENT REPORTS - Comprehensive tracking of fulfillment and verification
-data class IndentReport(
-    val reportDate: String,
-    val filter: IndentReportFilter,
-    val totalIndents: Int,
-    val indents: List<IndentReportSummary>
-)
-
-data class IndentReportFilter(
-    val startDate: String,
-    val endDate: String,
-    val status: String? = null, // null = All, or specific status
-    val chefId: String? = null // For filtering by chef
-)
-
-data class IndentReportSummary(
-    val indentId: String,
-    val chefName: String,
-    val cuisineName: String,
-    val requiredDate: String,
-    val requiredTime: String,
-    val priority: String,
-    val purpose: String,
-    val status: String,
-    val createdAt: String,
-    val fulfilledBy: String?, // Who fulfilled the indent
-    val fulfilledAt: String?,
-    val totalItems: Int,
-    val fulfilledItems: Int,
-    val verifiedItems: Int,
-    val rejectedItems: Int, // Items not received during verification
-    val items: List<IndentReportItemDetail>
-)
-
-data class IndentReportItemDetail(
-    val itemName: String,
-    val requestedQuantity: Double,
-    val approvedQuantity: Double?,
-    val fulfilledQuantity: Double?,
-    val unitOfMeasure: String,
-    val itemStatus: String, // Pending, Approved, Fulfilled
-    val isFulfilled: Boolean, // True if fulfilled_quantity > 0
-    val isVerified: Boolean, // True if is_received = true
-    val isRejected: Boolean, // True if is_received = false
-    val receivedBy: String?, // Who verified the item
-    val receivedAt: String?
-)
-
-// Legacy model - keeping for backward compatibility
+// INDENT REPORTS
 data class IndentStatusItem(
     @SerializedName("indent_id")
     val indentId: String,

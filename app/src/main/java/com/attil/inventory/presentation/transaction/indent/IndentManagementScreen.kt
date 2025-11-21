@@ -123,12 +123,136 @@ fun IndentManagementScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Filters
+                // Statistics Buttons
+                val totalCount = uiState.indents.size
+                val fulfilledCount = uiState.indents.count { it.status == "Fulfilled" }
+                val verifiedCount = uiState.indents.count { it.status == "Received" }
+                val partiallyVerifiedCount = uiState.indents.count { it.status == "Partially Completed" }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Date Filter
+                    // Total Button
+                    Button(
+                        onClick = {
+                            selectedStatusFilter = "All"
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedStatusFilter == "All") Color(0xFF1976D2) else Color(0xFFE0E0E0)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "$totalCount",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (selectedStatusFilter == "All") Color.White else Color(0xFF333333)
+                            )
+                            Text(
+                                text = "Total",
+                                fontSize = 10.sp,
+                                color = if (selectedStatusFilter == "All") Color.White else Color(0xFF666666)
+                            )
+                        }
+                    }
+
+                    // Fulfilled Button
+                    Button(
+                        onClick = {
+                            selectedStatusFilter = if (selectedStatusFilter == "Fulfilled") "All" else "Fulfilled"
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedStatusFilter == "Fulfilled") Color(0xFF2196F3) else Color(0xFFE0E0E0)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "$fulfilledCount",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (selectedStatusFilter == "Fulfilled") Color.White else Color(0xFF333333)
+                            )
+                            Text(
+                                text = "Fulfilled",
+                                fontSize = 10.sp,
+                                color = if (selectedStatusFilter == "Fulfilled") Color.White else Color(0xFF666666)
+                            )
+                        }
+                    }
+
+                    // Verified Button
+                    Button(
+                        onClick = {
+                            selectedStatusFilter = if (selectedStatusFilter == "Received") "All" else "Received"
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedStatusFilter == "Received") Color(0xFF4CAF50) else Color(0xFFE0E0E0)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "$verifiedCount",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (selectedStatusFilter == "Received") Color.White else Color(0xFF333333)
+                            )
+                            Text(
+                                text = "Verified",
+                                fontSize = 10.sp,
+                                color = if (selectedStatusFilter == "Received") Color.White else Color(0xFF666666)
+                            )
+                        }
+                    }
+
+                    // Partially Verified Button
+                    Button(
+                        onClick = {
+                            selectedStatusFilter = if (selectedStatusFilter == "Partially Completed") "All" else "Partially Completed"
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedStatusFilter == "Partially Completed") Color(0xFFFF8F00) else Color(0xFFE0E0E0)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "$partiallyVerifiedCount",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (selectedStatusFilter == "Partially Completed") Color.White else Color(0xFF333333)
+                            )
+                            Text(
+                                text = "Partial",
+                                fontSize = 9.sp,
+                                color = if (selectedStatusFilter == "Partially Completed") Color.White else Color(0xFF666666)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Date Filter
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     OutlinedButton(
                         onClick = { showDatePicker = true },
                         modifier = Modifier.weight(1f)
@@ -136,32 +260,10 @@ fun IndentManagementScreen(
                         Icon(Icons.Default.DateRange, contentDescription = "Date", modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = selectedDate ?: "Date",
+                            text = selectedDate ?: "Filter by Date",
                             fontSize = 12.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    // Status Filters
-                    val statusOptions = listOf("Submitted", "Fulfilled", "Received")
-                    statusOptions.forEach { status ->
-                        FilterChip(
-                            selected = selectedStatusFilter == status,
-                            onClick = {
-                                selectedStatusFilter = if (selectedStatusFilter == status) "All" else status
-                            },
-                            label = {
-                                Text(
-                                    text = status,
-                                    fontSize = 11.sp
-                                )
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF1976D2),
-                                selectedLabelColor = Color.White
-                            ),
-                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
@@ -324,6 +426,33 @@ fun IndentManagementScreen(
                 onVerificationComplete = {
                     // Close both dialogs after successful verification
                     showIndentDetails = null
+                }
+            )
+        }
+    }
+
+    // Reason Selection Dialog
+    if (uiState.showReasonDialog) {
+        showIndentDetails?.let { indent ->
+            ReasonSelectionDialog(
+                indent = indent,
+                untickedItems = uiState.untickedItems,
+                isSubmitting = uiState.isSubmittingReasons,
+                onDismiss = { viewModel.hideReasonDialog() },
+                onReasonChange = { itemId, reason ->
+                    viewModel.updateItemReason(itemId, reason)
+                },
+                onQuantityChange = { itemId, quantity ->
+                    viewModel.updateItemPartialQuantity(itemId, quantity)
+                },
+                onSubmit = {
+                    viewModel.submitPartialVerification(indent.id!!, currentUserId)
+                },
+                getItemReason = { itemId ->
+                    uiState.itemReasons[itemId] ?: ""
+                },
+                getItemPartialQuantity = { itemId ->
+                    uiState.itemPartialQuantities[itemId] ?: ""
                 }
             )
         }
@@ -632,12 +761,21 @@ private fun VerificationDialog(
                 }
 
                 items(verificationItems) { item ->
+                    // Determine if this is a partial fulfillment (red mark)
+                    val requiredQty = item.indentItem.approvedQuantity ?: item.indentItem.requestedQuantity
+                    val fulfilledQty = item.indentItem.fulfilledQuantity ?: 0.0
+                    val isPartialFulfillment = item.isFulfilled && fulfilledQty < requiredQty
+
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (item.isReceived) Color(0xFFE8F5E8) else Color(0xFFF8F9FA)
+                            containerColor = when {
+                                item.isReceived -> Color(0xFFE8F5E8)
+                                isPartialFulfillment -> Color(0xFFFFEBEE) // Red background for partial
+                                else -> Color(0xFFF8F9FA)
+                            }
                         )
                     ) {
                         Row(
@@ -661,17 +799,36 @@ private fun VerificationDialog(
                             }
 
                             Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = item.indentItem.items?.name ?: "Unknown Item",
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF333333)
+                                    )
+                                    if (isPartialFulfillment) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Icon(
+                                            Icons.Default.Warning,
+                                            contentDescription = "Partial Fulfillment",
+                                            tint = Color(0xFFE91E63),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+
                                 Text(
-                                    text = item.indentItem.items?.name ?: "Unknown Item",
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF333333)
+                                    text = "Required: $requiredQty ${item.indentItem.unitOfMeasure}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF666666)
                                 )
 
                                 if (item.isFulfilled) {
                                     Text(
                                         text = "Fulfilled: ${item.indentItem.fulfilledQuantity} ${item.indentItem.unitOfMeasure}",
                                         fontSize = 12.sp,
-                                        color = Color(0xFF4CAF50)
+                                        color = if (isPartialFulfillment) Color(0xFFE91E63) else Color(0xFF4CAF50)
                                     )
                                 } else {
                                     Text(
@@ -739,6 +896,146 @@ private fun VerificationDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun ReasonSelectionDialog(
+    indent: Indent,
+    untickedItems: List<VerificationItem>,
+    isSubmitting: Boolean,
+    onDismiss: () -> Unit,
+    onReasonChange: (String, String) -> Unit, // itemId, reason
+    onQuantityChange: (String, String) -> Unit, // itemId, quantity
+    onSubmit: () -> Unit,
+    getItemReason: (String) -> String,
+    getItemPartialQuantity: (String) -> String
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Specify Reasons for Unticked Items",
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF333333)
+            )
+        },
+        text = {
+            LazyColumn {
+                item {
+                    Text(
+                        text = "Please provide reason for items that were not verified:",
+                        fontSize = 14.sp,
+                        color = Color(0xFF666666)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                items(untickedItems) { item ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFFFF3E0)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Text(
+                                text = item.indentItem.items?.name ?: "Unknown Item",
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF333333),
+                                fontSize = 14.sp
+                            )
+
+                            Text(
+                                text = "Fulfilled: ${item.indentItem.fulfilledQuantity} ${item.indentItem.unitOfMeasure}",
+                                fontSize = 12.sp,
+                                color = Color(0xFF666666)
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Reason Selection
+                            val reasons = listOf("Not Received", "Partially Received")
+                            val selectedReason = getItemReason(item.indentItem.id!!)
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                reasons.forEach { reason ->
+                                    FilterChip(
+                                        selected = selectedReason == reason,
+                                        onClick = {
+                                            onReasonChange(item.indentItem.id!!, reason)
+                                        },
+                                        label = {
+                                            Text(
+                                                text = reason,
+                                                fontSize = 12.sp
+                                            )
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = Color(0xFFFF8F00),
+                                            selectedLabelColor = Color.White
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+
+                            // Show quantity input only for "Partially Received"
+                            if (selectedReason == "Partially Received") {
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = getItemPartialQuantity(item.indentItem.id!!),
+                                    onValueChange = { qty ->
+                                        onQuantityChange(item.indentItem.id!!, qty)
+                                    },
+                                    label = { Text("Received Quantity", fontSize = 12.sp) },
+                                    placeholder = { Text("Enter received quantity", fontSize = 12.sp) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Color(0xFFFF8F00),
+                                        focusedLabelColor = Color(0xFFFF8F00)
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onSubmit,
+                enabled = !isSubmitting,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFFF8F00)
+                )
+            ) {
+                if (isSubmitting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text("Submit", color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = Color(0xFF666666))
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun StatusChip(status: String) {
     val (backgroundColor, textColor) = when (status) {
         "Draft" -> Color(0xFFF5F5F5) to Color(0xFF666666)
@@ -749,6 +1046,7 @@ private fun StatusChip(status: String) {
         "Fulfilled" -> Color(0xFFE1F5FE) to Color(0xFF0288D1)
         "Received" -> Color(0xFFE8F5E8) to Color(0xFF2E7D32)
         "Partially Received" -> Color(0xFFFFF3E0) to Color(0xFFFF8F00)
+        "Partially Completed" -> Color(0xFFFFF3E0) to Color(0xFFFF8F00)
         "Not Received" -> Color(0xFFFFEBEE) to Color(0xFFD32F2F)
         else -> Color(0xFFF5F5F5) to Color(0xFF666666)
     }

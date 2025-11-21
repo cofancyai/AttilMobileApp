@@ -1,3 +1,4 @@
+
 package com.attil.inventory.presentation.transaction.indent
 
 import androidx.lifecycle.ViewModel
@@ -26,7 +27,6 @@ import com.attil.inventory.data.model.transaction.VerificationItem
 import com.attil.inventory.data.model.transaction.UpdateIndentItemRequest
 import com.attil.inventory.data.model.reports.IndentReport
 import com.attil.inventory.data.model.reports.IndentReportFilter
-import com.attil.inventory.data.model.reports.IndentReportSummary
 import android.content.Context
 import android.content.Intent
 import android.graphics.Paint
@@ -78,7 +78,14 @@ data class IndentUiState(
     // Indent Report state
     val indentReport: IndentReport? = null,
     val isLoadingReport: Boolean = false,
-    val reportError: String? = null
+    val reportError: String? = null,
+
+    // Reason selection dialog state
+    val showReasonDialog: Boolean = false,
+    val untickedItems: List<VerificationItem> = emptyList(),
+    val itemReasons: Map<String, String> = emptyMap(), // itemId -> reason
+    val itemPartialQuantities: Map<String, String> = emptyMap(), // itemId -> quantity
+    val isSubmittingReasons: Boolean = false
 )
 
 data class FulfillmentItem(
@@ -558,7 +565,52 @@ class IndentViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(verificationItems = updatedItems)
     }
 
+    fun showReasonDialog() {
+        val untickedItems = _uiState.value.verificationItems.filter {
+            it.isFulfilled && !it.isReceived
+        }
+        _uiState.value = _uiState.value.copy(
+            showReasonDialog = true,
+            untickedItems = untickedItems,
+            itemReasons = emptyMap(),
+            itemPartialQuantities = emptyMap()
+        )
+    }
+
+    fun hideReasonDialog() {
+        _uiState.value = _uiState.value.copy(
+            showReasonDialog = false,
+            untickedItems = emptyList(),
+            itemReasons = emptyMap(),
+            itemPartialQuantities = emptyMap()
+        )
+    }
+
+    fun updateItemReason(itemId: String, reason: String) {
+        val updatedReasons = _uiState.value.itemReasons.toMutableMap()
+        updatedReasons[itemId] = reason
+        _uiState.value = _uiState.value.copy(itemReasons = updatedReasons)
+    }
+
+    fun updateItemPartialQuantity(itemId: String, quantity: String) {
+        val updatedQuantities = _uiState.value.itemPartialQuantities.toMutableMap()
+        updatedQuantities[itemId] = quantity
+        _uiState.value = _uiState.value.copy(itemPartialQuantities = updatedQuantities)
+    }
+
     fun verifyIndentItems(indentId: String, userId: String) {
+        // Check if there are unticked items
+        val untickedItems = _uiState.value.verificationItems.filter {
+            it.isFulfilled && !it.isReceived
+        }
+
+        if (untickedItems.isNotEmpty()) {
+            // Show reason selection dialog for unticked items
+            showReasonDialog()
+            return
+        }
+
+        // Proceed with normal verification if all items are ticked
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isVerifying = true, verificationError = null)
 
@@ -600,16 +652,13 @@ class IndentViewModel @Inject constructor(
                                 }
                             }
 
-                            // Calculate new indent status
-                            val allFulfilledItems = _uiState.value.verificationItems.filter { it.isFulfilled }
-                            val receivedCount = _uiState.value.verificationItems.count { it.isReceived && it.isFulfilled }
-
-                            val newStatus = if (receivedCount == allFulfilledItems.size) "Received" else "Partially Received"
+                            // Calculate new indent status - all items verified (since unticked items show reason dialog)
+                            val newStatus = "Received"
 
                             // Update indent status
                             val updateRequest = UpdateIndentRequest(
                                 status = newStatus,
-                                receivedAt = if (newStatus == "Received") getCurrentTimestamp() else null
+                                receivedAt = getCurrentTimestamp()
                             )
 
                             repository.updateIndent(indentId, updateRequest).collect { indentResult ->
@@ -645,6 +694,136 @@ class IndentViewModel @Inject constructor(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isVerifying = false,
+                    verificationError = e.message
+                )
+            }
+        }
+    }
+
+    fun submitPartialVerification(indentId: String, userId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSubmittingReasons = true, verificationError = null)
+
+            try {
+                // Get ticked items (to be verified as received)
+                val tickedItems = _uiState.value.verificationItems.filter { it.isReceived && it.isFulfilled }
+
+                // Process ticked items - mark as received
+                if (tickedItems.isNotEmpty()) {
+                    val verifyRequest = VerifyIndentItemRequest(
+                        isReceived = true,
+                        receivedBy = userId,
+                        receivedAt = getCurrentTimestamp()
+                    )
+
+                    val tickedItemIds = tickedItems.map { it.indentItem.id!! }
+
+                    repository.verifyMultipleIndentItems(tickedItemIds, verifyRequest).collect { result ->
+                        result.onFailure { error ->
+                            _uiState.value = _uiState.value.copy(
+                                isSubmittingReasons = false,
+                                verificationError = "Failed to verify items: ${error.message}"
+                            )
+                            return@collect
+                        }
+                    }
+
+                    // Create outward transactions for ticked items to update stock
+                    val currentIndent = _uiState.value.currentIndentForVerification
+                    tickedItems.forEach { verificationItem ->
+                        val indentItem = verificationItem.indentItem
+                        indentItem.fulfilledQuantity?.let { fulfilledQty ->
+                            createOutwardTransactionForVerification(
+                                itemId = indentItem.itemId,
+                                quantity = fulfilledQty,
+                                indentId = indentId,
+                                chefId = currentIndent?.chefId,
+                                cuisineId = currentIndent?.cuisineId
+                            )
+                        }
+                    }
+                }
+
+                // Process unticked items based on their reasons
+                _uiState.value.untickedItems.forEach { item ->
+                    val reason = _uiState.value.itemReasons[item.indentItem.id!!] ?: "Not Received"
+                    val partialQty = _uiState.value.itemPartialQuantities[item.indentItem.id!!]
+
+                    when (reason) {
+                        "Not Received" -> {
+                            // Mark as not received (isReceived = false)
+                            val updateRequest = UpdateIndentItemRequest(
+                                isReceived = false
+                            )
+                            repository.updateIndentItem(item.indentItem.id!!, updateRequest).collect { result ->
+                                result.onFailure { error ->
+                                    println("Failed to update item: ${error.message}")
+                                }
+                            }
+                        }
+                        "Partially Received" -> {
+                            // Update fulfilled quantity to partial quantity
+                            val quantity = partialQty?.toDoubleOrNull() ?: 0.0
+                            val updateRequest = UpdateIndentItemRequest(
+                                fulfilledQuantity = quantity,
+                                isReceived = true,
+                                receivedBy = userId,
+                                receivedAt = getCurrentTimestamp()
+                            )
+                            repository.updateIndentItem(item.indentItem.id!!, updateRequest).collect { result ->
+                                result.onFailure { error ->
+                                    println("Failed to update item: ${error.message}")
+                                }
+                            }
+
+                            // Create outward transaction for partial quantity
+                            if (quantity > 0) {
+                                val currentIndent = _uiState.value.currentIndentForVerification
+                                createOutwardTransactionForVerification(
+                                    itemId = item.indentItem.itemId,
+                                    quantity = quantity,
+                                    indentId = indentId,
+                                    chefId = currentIndent?.chefId,
+                                    cuisineId = currentIndent?.cuisineId
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Update indent status to "Partially Received"
+                val updateRequest = UpdateIndentRequest(
+                    status = "Partially Received",
+                    receivedAt = getCurrentTimestamp()
+                )
+
+                repository.updateIndent(indentId, updateRequest).collect { indentResult ->
+                    indentResult.fold(
+                        onSuccess = {
+                            _uiState.value = _uiState.value.copy(
+                                isSubmittingReasons = false,
+                                showReasonDialog = false,
+                                showVerificationDialog = false,
+                                verificationItems = emptyList(),
+                                untickedItems = emptyList(),
+                                itemReasons = emptyMap(),
+                                itemPartialQuantities = emptyMap(),
+                                verificationCompleted = true
+                            )
+                            // Reload indents to show updated status
+                            loadIndents()
+                        },
+                        onFailure = { error ->
+                            _uiState.value = _uiState.value.copy(
+                                isSubmittingReasons = false,
+                                verificationError = error.message
+                            )
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isSubmittingReasons = false,
                     verificationError = e.message
                 )
             }
@@ -857,384 +1036,5 @@ class IndentViewModel @Inject constructor(
 
     private fun getCurrentDate(): String {
         return java.time.LocalDate.now().toString()
-    }
-
-    // ========== INDENT REPORT FUNCTIONS ==========
-
-    fun loadIndentReport(startDate: String, endDate: String, status: String?, chefId: String?) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoadingReport = true, reportError = null)
-
-            try {
-                val filter = IndentReportFilter(
-                    startDate = startDate,
-                    endDate = endDate,
-                    status = status,
-                    chefId = chefId
-                )
-
-                repository.getIndentsForReport(filter).collect { result ->
-                    result.fold(
-                        onSuccess = { report ->
-                            _uiState.value = _uiState.value.copy(
-                                indentReport = report,
-                                isLoadingReport = false,
-                                reportError = null
-                            )
-                        },
-                        onFailure = { error ->
-                            _uiState.value = _uiState.value.copy(
-                                isLoadingReport = false,
-                                reportError = error.message ?: "Failed to load indent report"
-                            )
-                        }
-                    )
-                }
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoadingReport = false,
-                    reportError = e.message ?: "An unexpected error occurred"
-                )
-            }
-        }
-    }
-
-    fun exportIndentReportToPdf(context: Context) {
-        viewModelScope.launch {
-            try {
-                val report = _uiState.value.indentReport ?: return@launch
-
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Creating PDF...", Toast.LENGTH_SHORT).show()
-                }
-
-                val fileName = "Indent_Report_${report.filter.startDate}_to_${report.filter.endDate}.pdf"
-                val file = createIndentPdfReport(context, report, fileName)
-
-                withContext(Dispatchers.Main) {
-                    if (file != null) {
-                        Toast.makeText(context, "PDF saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
-                        openPdfFile(context, file)
-                    } else {
-                        Toast.makeText(context, "Failed to create PDF", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("IndentViewModel", "Error exporting PDF", e)
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    private suspend fun createIndentPdfReport(context: Context, report: IndentReport, fileName: String): File? {
-        return withContext(Dispatchers.IO) {
-            try {
-                Log.d("IndentViewModel", "Creating indent PDF with ${report.totalIndents} indents")
-
-                // Save to Downloads folder on all Android versions
-                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                val file = File(downloadsDir, fileName)
-
-                val pdfDocument = PdfDocument()
-                val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 Portrait
-                var page = pdfDocument.startPage(pageInfo)
-                var canvas = page.canvas
-                val paint = Paint()
-
-                // Page margins
-                val leftMargin = 30f
-                val rightMargin = 565f
-                val topMargin = 40f
-                val availableWidth = rightMargin - leftMargin
-
-                var yPosition = topMargin
-
-                // Title
-                paint.textSize = 20f
-                paint.isFakeBoldText = true
-                canvas.drawText("Indent Report", leftMargin, yPosition, paint)
-                yPosition += 30f
-
-                // Date Range
-                paint.textSize = 12f
-                paint.isFakeBoldText = false
-                canvas.drawText("Period: ${report.filter.startDate} to ${report.filter.endDate}", leftMargin, yPosition, paint)
-                yPosition += 20f
-
-                // Summary
-                paint.textSize = 10f
-                canvas.drawText("Total Indents: ${report.totalIndents}", leftMargin, yPosition, paint)
-                yPosition += 40f
-
-                // Indent Details
-                report.indents.forEach { indent ->
-                    // Check if we need a new page
-                    if (yPosition > 750f) {
-                        pdfDocument.finishPage(page)
-                        page = pdfDocument.startPage(pageInfo)
-                        canvas = page.canvas
-                        yPosition = topMargin
-                    }
-
-                    // Indent Header
-                    paint.textSize = 12f
-                    paint.isFakeBoldText = true
-                    canvas.drawText("Chef: ${indent.chefName}", leftMargin, yPosition, paint)
-                    yPosition += 18f
-
-                    paint.textSize = 10f
-                    paint.isFakeBoldText = false
-                    canvas.drawText("Cuisine: ${indent.cuisineName} | Purpose: ${indent.purpose}", leftMargin, yPosition, paint)
-                    yPosition += 15f
-
-                    canvas.drawText("Required: ${indent.requiredDate} ${indent.requiredTime}", leftMargin, yPosition, paint)
-                    yPosition += 15f
-
-                    canvas.drawText("Status: ${indent.status} | Priority: ${indent.priority}", leftMargin, yPosition, paint)
-                    yPosition += 15f
-
-                    // Statistics
-                    val stats = "Items: ${indent.totalItems} | Fulfilled: ${indent.fulfilledItems} | " +
-                            "Verified: ${indent.verifiedItems} | Rejected: ${indent.rejectedItems}"
-                    canvas.drawText(stats, leftMargin, yPosition, paint)
-                    yPosition += 15f
-
-                    if (indent.fulfilledBy != null) {
-                        canvas.drawText("Fulfilled by: ${indent.fulfilledBy}", leftMargin, yPosition, paint)
-                        yPosition += 15f
-                    }
-
-                    // Item Details Table
-                    yPosition += 10f
-
-                    // Table Header
-                    paint.textSize = 8f
-                    paint.isFakeBoldText = true
-
-                    // Column positions
-                    val col1X = leftMargin
-                    val col2X = leftMargin + 250f
-                    val col3X = leftMargin + 340f
-                    val col4X = leftMargin + 430f
-
-                    // Draw table header
-                    if (yPosition > 720f) {
-                        pdfDocument.finishPage(page)
-                        page = pdfDocument.startPage(pageInfo)
-                        canvas = page.canvas
-                        yPosition = topMargin
-                    }
-
-                    canvas.drawText("Item Name", col1X, yPosition, paint)
-                    canvas.drawText("Requested", col2X, yPosition, paint)
-                    canvas.drawText("Fulfilled", col3X, yPosition, paint)
-                    canvas.drawText("Status", col4X, yPosition, paint)
-                    yPosition += 15f
-
-                    // Draw header line
-                    canvas.drawLine(leftMargin, yPosition - 5f, rightMargin, yPosition - 5f, paint)
-                    yPosition += 2f
-
-                    // Table rows
-                    paint.isFakeBoldText = false
-                    indent.items.forEach { item ->
-                        if (yPosition > 750f) {
-                            pdfDocument.finishPage(page)
-                            page = pdfDocument.startPage(pageInfo)
-                            canvas = page.canvas
-                            yPosition = topMargin
-
-                            // Redraw header on new page
-                            paint.isFakeBoldText = true
-                            canvas.drawText("Item Name", col1X, yPosition, paint)
-                            canvas.drawText("Requested", col2X, yPosition, paint)
-                            canvas.drawText("Fulfilled", col3X, yPosition, paint)
-                            canvas.drawText("Status", col4X, yPosition, paint)
-                            yPosition += 15f
-                            canvas.drawLine(leftMargin, yPosition - 5f, rightMargin, yPosition - 5f, paint)
-                            yPosition += 2f
-                            paint.isFakeBoldText = false
-                        }
-
-                        val status = when {
-                            item.isRejected -> "Rejected"
-                            item.isVerified -> "Verified"
-                            item.isFulfilled -> "Fulfilled"
-                            else -> "Pending"
-                        }
-
-                        // Truncate item name if too long
-                        val itemName = if (item.itemName.length > 30) {
-                            item.itemName.substring(0, 27) + "..."
-                        } else {
-                            item.itemName
-                        }
-
-                        canvas.drawText(itemName, col1X, yPosition, paint)
-                        canvas.drawText("${item.requestedQuantity} ${item.unitOfMeasure}", col2X, yPosition, paint)
-                        canvas.drawText("${item.fulfilledQuantity ?: 0.0} ${item.unitOfMeasure}", col3X, yPosition, paint)
-                        canvas.drawText(status, col4X, yPosition, paint)
-                        yPosition += 14f
-                    }
-
-                    yPosition += 10f // Space between indents
-                }
-
-                pdfDocument.finishPage(page)
-                pdfDocument.writeTo(FileOutputStream(file))
-                pdfDocument.close()
-
-                Log.d("IndentViewModel", "PDF created successfully at: ${file.absolutePath}")
-                file
-            } catch (e: Exception) {
-                Log.e("IndentViewModel", "Error creating PDF", e)
-                null
-            }
-        }
-    }
-
-    fun exportIndentReportToCsv(context: Context) {
-        viewModelScope.launch {
-            try {
-                val report = _uiState.value.indentReport ?: return@launch
-
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Creating CSV...", Toast.LENGTH_SHORT).show()
-                }
-
-                val fileName = "Indent_Report_${report.filter.startDate}_to_${report.filter.endDate}.csv"
-                val file = createIndentCsvReport(context, report, fileName)
-
-                withContext(Dispatchers.Main) {
-                    if (file != null) {
-                        Toast.makeText(context, "CSV saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
-                        openCsvFile(context, file)
-                    } else {
-                        Toast.makeText(context, "Failed to create CSV", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("IndentViewModel", "Error exporting CSV", e)
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    private suspend fun createIndentCsvReport(context: Context, report: IndentReport, fileName: String): File? {
-        return withContext(Dispatchers.IO) {
-            try {
-                Log.d("IndentViewModel", "Creating CSV with ${report.totalIndents} indents")
-
-                // Save to Downloads folder on all Android versions
-                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                if (!downloadsDir.exists()) downloadsDir.mkdirs()
-                val file = File(downloadsDir, fileName)
-
-                FileOutputStream(file).use { fos ->
-                    // Header
-                    val header = "Indent ID,Chef Name,Cuisine,Required Date,Required Time,Priority,Purpose,Status," +
-                            "Total Items,Fulfilled Items,Verified Items,Rejected Items,Fulfilled By," +
-                            "Item Name,Requested Qty,Fulfilled Qty,Unit,Item Status,Is Fulfilled,Is Verified,Is Rejected\n"
-                    fos.write(header.toByteArray())
-
-                    // Data rows
-                    report.indents.forEach { indent ->
-                        indent.items.forEach { item ->
-                            val row = "${escapeCsv(indent.indentId)}," +
-                                    "${escapeCsv(indent.chefName)}," +
-                                    "${escapeCsv(indent.cuisineName)}," +
-                                    "${escapeCsv(indent.requiredDate)}," +
-                                    "${escapeCsv(indent.requiredTime)}," +
-                                    "${escapeCsv(indent.priority)}," +
-                                    "${escapeCsv(indent.purpose)}," +
-                                    "${escapeCsv(indent.status)}," +
-                                    "${indent.totalItems}," +
-                                    "${indent.fulfilledItems}," +
-                                    "${indent.verifiedItems}," +
-                                    "${indent.rejectedItems}," +
-                                    "${escapeCsv(indent.fulfilledBy ?: "N/A")}," +
-                                    "${escapeCsv(item.itemName)}," +
-                                    "${item.requestedQuantity}," +
-                                    "${item.fulfilledQuantity ?: 0.0}," +
-                                    "${escapeCsv(item.unitOfMeasure)}," +
-                                    "${escapeCsv(item.itemStatus)}," +
-                                    "${item.isFulfilled}," +
-                                    "${item.isVerified}," +
-                                    "${item.isRejected}\n"
-                            fos.write(row.toByteArray())
-                        }
-                    }
-                }
-
-                Log.d("IndentViewModel", "CSV created successfully at: ${file.absolutePath}")
-                file
-            } catch (e: Exception) {
-                Log.e("IndentViewModel", "Error creating CSV", e)
-                null
-            }
-        }
-    }
-
-    private fun escapeCsv(value: String): String {
-        return if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
-            "\"${value.replace("\"", "\"\"")}\""
-        } else {
-            value
-        }
-    }
-
-    private fun openPdfFile(context: Context, file: File) {
-        try {
-            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    file
-                )
-            } else {
-                android.net.Uri.fromFile(file)
-            }
-
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/pdf")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            Log.e("IndentViewModel", "Error opening PDF", e)
-            Toast.makeText(context, "No PDF viewer app found", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun openCsvFile(context: Context, file: File) {
-        try {
-            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    file
-                )
-            } else {
-                android.net.Uri.fromFile(file)
-            }
-
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "text/csv")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            Log.e("IndentViewModel", "Error opening CSV", e)
-            Toast.makeText(context, "No CSV/Excel viewer app found", Toast.LENGTH_SHORT).show()
-        }
     }
 }
