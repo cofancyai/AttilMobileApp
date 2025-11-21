@@ -137,23 +137,29 @@ data class IndentReportSummary(
     val requiredTime: String,
     val status: String,
     val priority: String?,
+    val createdAt: String,
+    val fulfilledBy: String?,
+    val fulfilledAt: String?,
     val totalItems: Int,
     val fulfilledItems: Int,
     val verifiedItems: Int,
     val rejectedItems: Int,
-    val fulfilledBy: String?,
     val items: List<IndentReportItemDetail>
 )
 
 data class IndentReportItemDetail(
-    val itemId: String,
+    val itemId: String? = null,
     val itemName: String,
     val requestedQuantity: Double,
+    val approvedQuantity: Double? = null,
     val fulfilledQuantity: Double?,
     val unitOfMeasure: String,
+    val itemStatus: String? = null,
     val isFulfilled: Boolean,
     val isVerified: Boolean,
-    val isRejected: Boolean
+    val isRejected: Boolean,
+    val receivedBy: String? = null,
+    val receivedAt: String? = null
 )
 
 // Summary models for quick statistics
