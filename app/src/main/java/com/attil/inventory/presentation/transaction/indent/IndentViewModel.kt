@@ -1037,4 +1037,425 @@ class IndentViewModel @Inject constructor(
     private fun getCurrentDate(): String {
         return java.time.LocalDate.now().toString()
     }
+
+    private fun getCurrentTime(): String {
+        return java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+    }
+
+    private fun loadUsages() {
+        viewModelScope.launch {
+            usageRepository.getAllUsages().collect { result ->
+                result.fold(
+                    onSuccess = { usages ->
+                        val activeUsages = usages.filter { it.isActive }
+                        _uiState.value = _uiState.value.copy(usages = activeUsages)
+                    },
+                    onFailure = { error ->
+                        _uiState.value = _uiState.value.copy(error = error.message)
+                    }
+                )
+            }
+        }
+    }
+
+    fun selectUsage(usage: com.attil.inventory.data.model.management.Usage) {
+        _uiState.value = _uiState.value.copy(
+            selectedUsage = usage,
+            purpose = usage.name
+        )
+    }
+
+    fun removeSelectedItem(itemId: String) {
+        val currentItems = _uiState.value.availableItems.toMutableList()
+        val index = currentItems.indexOfFirst { it.item.id == itemId }
+
+        if (index != -1) {
+            val updatedItem = currentItems[index].copy(
+                isSelected = false,
+                requestedQuantity = 0.0
+            )
+            currentItems[index] = updatedItem
+
+            val selectedItems = currentItems.filter { it.isSelected }
+
+            _uiState.value = _uiState.value.copy(
+                availableItems = currentItems,
+                selectedItems = selectedItems,
+                totalSelectedItems = selectedItems.size
+            )
+
+            if (_uiState.value.searchQuery.isNotEmpty()) {
+                filterItems()
+            }
+        }
+    }
+
+    fun loadChefCuisines(chefId: String) {
+        viewModelScope.launch {
+            userRepository.getUserById(chefId).collect { result ->
+                result.fold(
+                    onSuccess = { user ->
+                        val assignedCuisines = user?.getAssignedCuisines() ?: emptyList()
+                        _uiState.value = _uiState.value.copy(cuisines = assignedCuisines)
+
+                        if (assignedCuisines.size == 1) {
+                            _uiState.value = _uiState.value.copy(selectedCuisine = assignedCuisines.first())
+                        }
+                    },
+                    onFailure = { error ->
+                        _uiState.value = _uiState.value.copy(error = error.message)
+                    }
+                )
+            }
+        }
+    }
+
+    fun loadIndentReport(startDate: String, endDate: String, status: String?, chefId: String?) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingReport = true, reportError = null)
+
+            try {
+                val filter = IndentReportFilter(
+                    startDate = startDate,
+                    endDate = endDate,
+                    status = status,
+                    chefId = chefId
+                )
+
+                repository.getIndentsForReport(filter).collect { result ->
+                    result.fold(
+                        onSuccess = { report ->
+                            _uiState.value = _uiState.value.copy(
+                                indentReport = report,
+                                isLoadingReport = false,
+                                reportError = null
+                            )
+                        },
+                        onFailure = { error ->
+                            _uiState.value = _uiState.value.copy(
+                                isLoadingReport = false,
+                                reportError = error.message ?: "Failed to load indent report"
+                            )
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoadingReport = false,
+                    reportError = e.message ?: "An unexpected error occurred"
+                )
+            }
+        }
+    }
+
+    fun exportIndentReportToPdf(context: Context) {
+        viewModelScope.launch {
+            try {
+                val report = _uiState.value.indentReport ?: return@launch
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Creating PDF...", Toast.LENGTH_SHORT).show()
+                }
+
+                val fileName = "Indent_Report_${report.filter.startDate}_to_${report.filter.endDate}.pdf"
+                val file = createIndentPdfReport(context, report, fileName)
+
+                withContext(Dispatchers.Main) {
+                    if (file != null) {
+                        Toast.makeText(context, "PDF saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                        openPdfFile(context, file)
+                    } else {
+                        Toast.makeText(context, "Failed to create PDF", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("IndentViewModel", "Error exporting PDF", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private suspend fun createIndentPdfReport(context: Context, report: IndentReport, fileName: String): File? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val file = File(downloadsDir, fileName)
+
+                val pdfDocument = PdfDocument()
+                val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
+                var page = pdfDocument.startPage(pageInfo)
+                var canvas = page.canvas
+                val paint = Paint()
+
+                val leftMargin = 30f
+                val rightMargin = 565f
+                val topMargin = 40f
+
+                var yPosition = topMargin
+
+                paint.textSize = 20f
+                paint.isFakeBoldText = true
+                canvas.drawText("Indent Report", leftMargin, yPosition, paint)
+                yPosition += 30f
+
+                paint.textSize = 12f
+                paint.isFakeBoldText = false
+                canvas.drawText("Period: ${report.filter.startDate} to ${report.filter.endDate}", leftMargin, yPosition, paint)
+                yPosition += 20f
+
+                paint.textSize = 10f
+                canvas.drawText("Total Indents: ${report.totalIndents}", leftMargin, yPosition, paint)
+                yPosition += 40f
+
+                report.indents.forEach { indent ->
+                    if (yPosition > 750f) {
+                        pdfDocument.finishPage(page)
+                        page = pdfDocument.startPage(pageInfo)
+                        canvas = page.canvas
+                        yPosition = topMargin
+                    }
+
+                    paint.textSize = 12f
+                    paint.isFakeBoldText = true
+                    canvas.drawText("Chef: ${indent.chefName}", leftMargin, yPosition, paint)
+                    yPosition += 18f
+
+                    paint.textSize = 10f
+                    paint.isFakeBoldText = false
+                    canvas.drawText("Cuisine: ${indent.cuisineName} | Purpose: ${indent.purpose}", leftMargin, yPosition, paint)
+                    yPosition += 15f
+
+                    canvas.drawText("Required: ${indent.requiredDate} ${indent.requiredTime}", leftMargin, yPosition, paint)
+                    yPosition += 15f
+
+                    canvas.drawText("Status: ${indent.status} | Priority: ${indent.priority}", leftMargin, yPosition, paint)
+                    yPosition += 15f
+
+                    val stats = "Items: ${indent.totalItems} | Fulfilled: ${indent.fulfilledItems} | Verified: ${indent.verifiedItems} | Rejected: ${indent.rejectedItems}"
+                    canvas.drawText(stats, leftMargin, yPosition, paint)
+                    yPosition += 15f
+
+                    if (indent.fulfilledBy != null) {
+                        canvas.drawText("Fulfilled by: ${indent.fulfilledBy}", leftMargin, yPosition, paint)
+                        yPosition += 15f
+                    }
+
+                    yPosition += 10f
+
+                    paint.textSize = 8f
+                    paint.isFakeBoldText = true
+
+                    val col1X = leftMargin
+                    val col2X = leftMargin + 250f
+                    val col3X = leftMargin + 340f
+                    val col4X = leftMargin + 430f
+
+                    if (yPosition > 720f) {
+                        pdfDocument.finishPage(page)
+                        page = pdfDocument.startPage(pageInfo)
+                        canvas = page.canvas
+                        yPosition = topMargin
+                    }
+
+                    canvas.drawText("Item Name", col1X, yPosition, paint)
+                    canvas.drawText("Requested", col2X, yPosition, paint)
+                    canvas.drawText("Fulfilled", col3X, yPosition, paint)
+                    canvas.drawText("Status", col4X, yPosition, paint)
+                    yPosition += 15f
+
+                    canvas.drawLine(leftMargin, yPosition - 5f, rightMargin, yPosition - 5f, paint)
+                    yPosition += 2f
+
+                    paint.isFakeBoldText = false
+                    indent.items.forEach { item ->
+                        if (yPosition > 750f) {
+                            pdfDocument.finishPage(page)
+                            page = pdfDocument.startPage(pageInfo)
+                            canvas = page.canvas
+                            yPosition = topMargin
+
+                            paint.isFakeBoldText = true
+                            canvas.drawText("Item Name", col1X, yPosition, paint)
+                            canvas.drawText("Requested", col2X, yPosition, paint)
+                            canvas.drawText("Fulfilled", col3X, yPosition, paint)
+                            canvas.drawText("Status", col4X, yPosition, paint)
+                            yPosition += 15f
+                            canvas.drawLine(leftMargin, yPosition - 5f, rightMargin, yPosition - 5f, paint)
+                            yPosition += 2f
+                            paint.isFakeBoldText = false
+                        }
+
+                        val status = when {
+                            item.isRejected -> "Rejected"
+                            item.isVerified -> "Verified"
+                            item.isFulfilled -> "Fulfilled"
+                            else -> "Pending"
+                        }
+
+                        val itemName = if (item.itemName.length > 30) {
+                            item.itemName.substring(0, 27) + "..."
+                        } else {
+                            item.itemName
+                        }
+
+                        canvas.drawText(itemName, col1X, yPosition, paint)
+                        canvas.drawText("${item.requestedQuantity} ${item.unitOfMeasure}", col2X, yPosition, paint)
+                        canvas.drawText("${item.fulfilledQuantity ?: 0.0} ${item.unitOfMeasure}", col3X, yPosition, paint)
+                        canvas.drawText(status, col4X, yPosition, paint)
+                        yPosition += 14f
+                    }
+
+                    yPosition += 10f
+                }
+
+                pdfDocument.finishPage(page)
+                pdfDocument.writeTo(FileOutputStream(file))
+                pdfDocument.close()
+
+                file
+            } catch (e: Exception) {
+                Log.e("IndentViewModel", "Error creating PDF", e)
+                null
+            }
+        }
+    }
+
+    fun exportIndentReportToCsv(context: Context) {
+        viewModelScope.launch {
+            try {
+                val report = _uiState.value.indentReport ?: return@launch
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Creating CSV...", Toast.LENGTH_SHORT).show()
+                }
+
+                val fileName = "Indent_Report_${report.filter.startDate}_to_${report.filter.endDate}.csv"
+                val file = createIndentCsvReport(context, report, fileName)
+
+                withContext(Dispatchers.Main) {
+                    if (file != null) {
+                        Toast.makeText(context, "CSV saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                        openCsvFile(context, file)
+                    } else {
+                        Toast.makeText(context, "Failed to create CSV", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("IndentViewModel", "Error exporting CSV", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private suspend fun createIndentCsvReport(context: Context, report: IndentReport, fileName: String): File? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                val file = File(downloadsDir, fileName)
+
+                FileOutputStream(file).use { fos ->
+                    val header = "Indent ID,Chef Name,Cuisine,Required Date,Required Time,Priority,Purpose,Status," +
+                            "Total Items,Fulfilled Items,Verified Items,Rejected Items,Fulfilled By," +
+                            "Item Name,Requested Qty,Fulfilled Qty,Unit,Item Status,Is Fulfilled,Is Verified,Is Rejected\n"
+                    fos.write(header.toByteArray())
+
+                    report.indents.forEach { indent ->
+                        indent.items.forEach { item ->
+                            val row = "${escapeCsv(indent.indentId)}," +
+                                    "${escapeCsv(indent.chefName)}," +
+                                    "${escapeCsv(indent.cuisineName)}," +
+                                    "${escapeCsv(indent.requiredDate)}," +
+                                    "${escapeCsv(indent.requiredTime)}," +
+                                    "${escapeCsv(indent.priority)}," +
+                                    "${escapeCsv(indent.purpose)}," +
+                                    "${escapeCsv(indent.status)}," +
+                                    "${indent.totalItems}," +
+                                    "${indent.fulfilledItems}," +
+                                    "${indent.verifiedItems}," +
+                                    "${indent.rejectedItems}," +
+                                    "${escapeCsv(indent.fulfilledBy ?: "N/A")}," +
+                                    "${escapeCsv(item.itemName)}," +
+                                    "${item.requestedQuantity}," +
+                                    "${item.fulfilledQuantity ?: 0.0}," +
+                                    "${escapeCsv(item.unitOfMeasure)}," +
+                                    "${escapeCsv(item.itemStatus)}," +
+                                    "${item.isFulfilled}," +
+                                    "${item.isVerified}," +
+                                    "${item.isRejected}\n"
+                            fos.write(row.toByteArray())
+                        }
+                    }
+                }
+
+                file
+            } catch (e: Exception) {
+                Log.e("IndentViewModel", "Error creating CSV", e)
+                null
+            }
+        }
+    }
+
+    private fun escapeCsv(value: String): String {
+        return if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            "\"${value.replace("\"", "\"\"")}\""
+        } else {
+            value
+        }
+    }
+
+    private fun openPdfFile(context: Context, file: File) {
+        try {
+            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+            } else {
+                android.net.Uri.fromFile(file)
+            }
+
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/pdf")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("IndentViewModel", "Error opening PDF", e)
+            Toast.makeText(context, "No PDF viewer app found", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun openCsvFile(context: Context, file: File) {
+        try {
+            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+            } else {
+                android.net.Uri.fromFile(file)
+            }
+
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "text/csv")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("IndentViewModel", "Error opening CSV", e)
+            Toast.makeText(context, "No CSV/Excel viewer app found", Toast.LENGTH_SHORT).show()
+        }
+    }
 }
